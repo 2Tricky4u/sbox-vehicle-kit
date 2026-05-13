@@ -1,0 +1,14 @@
+{
+  "PresetName": "Default",
+  "EnginePowerMultiplier": 2.0002632,
+  "BrakeMultiplier": 1,
+  "SteeringMultiplier": 1,
+  "SuspensionStiffnessMultiplier": 1,
+  "SuspensionDampingMultiplier": 1,
+  "FrontGripMultiplier": 1,
+  "RearGripMultiplier": 1,
+  "DownforceMultiplier": 1,
+  "Tags": [],
+  "__references": [],
+  "__version": 0
+}

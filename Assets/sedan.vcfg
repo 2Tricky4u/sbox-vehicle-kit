@@ -1,0 +1,48 @@
+{
+  "DisplayName": "Sedan",
+  "ModelPath": null,
+  "PrefabPath": null,
+  "MaxSpeedKmh": 140,
+  "MassKg": 1400,
+  "Grip": 0.85,
+  "EngineTorqueNm": 250,
+  "BrakeStrength": 1,
+  "AccelerationCurve": [
+    {
+      "x": 0,
+      "y": 1,
+      "in": 0,
+      "out": 0,
+      "mode": "Mirrored"
+    },
+    {
+      "x": 0.5,
+      "y": 0.7,
+      "in": 0,
+      "out": 0,
+      "mode": "Mirrored"
+    },
+    {
+      "x": 1,
+      "y": 0,
+      "in": 0,
+      "out": 0,
+      "mode": "Mirrored"
+    }
+  ],
+  "WheelCount": 4,
+  "SeatCount": 4,
+  "CargoCapacityKg": 0,
+  "FuelCapacityLitres": 50,
+  "FuelConsumptionLPer100Km": 7.5,
+  "EngineMaxHealth": 100,
+  "BodyMaxHealth": 100,
+  "EngineSoundPath": null,
+  "HornSoundPath": null,
+  "PaintTintable": true,
+  "Tags": [],
+  "PurchasePrice": 5000,
+  "RepairBaseCost": 50,
+  "__references": [],
+  "__version": 0
+}

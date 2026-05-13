@@ -1,0 +1,58 @@
+.diagnostic-panel {
+	position: absolute;
+	top: 200px;
+	left: 200px;
+	width: 480px;
+	background-color: rgba( 0, 0, 0, 0.85 );
+	color: white;
+	padding: 16px;
+	border-radius: 8px;
+	flex-direction: column;
+	gap: 8px;
+	font-family: Roboto, sans-serif;
+
+	.header {
+		font-size: 24px;
+		font-weight: bold;
+		margin-bottom: 8px;
+	}
+
+	.row {
+		flex-direction: row;
+		align-items: center;
+		gap: 8px;
+
+		label {
+			width: 80px;
+		}
+
+		progress {
+			flex-grow: 1;
+			height: 16px;
+		}
+
+		.value {
+			width: 110px;
+			text-align: right;
+		}
+
+		button {
+			padding: 4px 12px;
+			background-color: rgba( 60, 120, 200, 0.9 );
+			color: white;
+			border-radius: 4px;
+			cursor: pointer;
+		}
+
+		button:hover {
+			background-color: rgba( 80, 140, 220, 1 );
+		}
+	}
+
+	.close {
+		align-self: flex-end;
+		margin-top: 12px;
+		padding: 6px 16px;
+		background-color: rgba( 120, 60, 60, 0.9 );
+	}
+}

@@ -1,0 +1,35 @@
+@using Sandbox
+@using Sandbox.UI
+@using System
+
+<root class="fuel-gauge">
+	@if ( Vehicle?.Config is not null )
+	{
+		var pct = Vehicle.FuelPct;
+		var pctText = ( (int)( pct * 100 ) ).ToString();
+		<label class="title">FUEL</label>
+		<progress max="1" value="@pct" class="@FuelClass" />
+		<label class="value">@pctText%</label>
+	}
+</root>
+
+@code {
+	public Vehicles.Maintenance.VehicleBase Vehicle { get; set; }
+
+	string FuelClass
+	{
+		get
+		{
+			if ( Vehicle is null ) return "ok";
+			var p = Vehicle.FuelPct;
+			if ( p < 0.1f ) return "critical";
+			if ( p < 0.25f ) return "low";
+			return "ok";
+		}
+	}
+
+	protected override int BuildHash()
+	{
+		return HashCode.Combine( Vehicle?.Fuel ?? 0f );
+	}
+}

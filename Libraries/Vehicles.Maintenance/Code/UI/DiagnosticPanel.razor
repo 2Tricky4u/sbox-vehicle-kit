@@ -1,0 +1,67 @@
+@using Sandbox
+@using Sandbox.UI
+@using System
+@using Vehicles.Maintenance
+
+<root class="diagnostic-panel">
+	@if ( Vehicle?.Config is not null )
+	{
+		<div class="header">@Vehicle.Config.DisplayName</div>
+
+		<div class="row">
+			<label>Fuel</label>
+			<progress max="1" value=@Vehicle.FuelPct />
+			<label class="value">@($"{Vehicle.Fuel:F1} / {Vehicle.Config.FuelCapacityLitres:F0} L")</label>
+		</div>
+
+		<div class="row">
+			<label>Engine</label>
+			<progress max="1" value=@Vehicle.EngineHealthPct />
+			<button @onclick=@(() => RepairPart( PartKind.Engine ))>Repair</button>
+		</div>
+
+		<div class="row">
+			<label>Body</label>
+			<progress max="1" value=@Vehicle.BodyHealthPct />
+			<button @onclick=@(() => RepairPart( PartKind.Body ))>Repair</button>
+		</div>
+
+		@for ( int i = 0; i < Vehicle.TireWear.Count; i++ )
+		{
+			int idx = i;
+			<div class="row">
+				<label>Tire @(idx + 1)</label>
+				<progress max="1" value=@(1f - Vehicle.TireWear[idx]) />
+				<button @onclick=@(() => RepairTire( idx ))>Repair</button>
+			</div>
+		}
+
+		<button class="close" @onclick=@Close>Close</button>
+	}
+</root>
+
+@code {
+	public VehicleBase Vehicle { get; set; }
+	public Action OnClose { get; set; }
+
+	void RepairPart( PartKind part )
+	{
+		// TODO: look up the appropriate PartDefinition for this PartKind in the
+		// mechanic's inventory via VehicleHost.Current.GetInventory(conn), charge
+		// the player, then call Vehicle.RepairRpc(part, amount). For v1 this is
+		// driven through RepairTool instead.
+	}
+
+	void RepairTire( int idx )
+	{
+		// TODO: same as RepairPart but pass wheelIndex.
+	}
+
+	void Close() => OnClose?.Invoke();
+
+	protected override int BuildHash() => HashCode.Combine(
+		Vehicle?.Fuel,
+		Vehicle?.EngineHealth,
+		Vehicle?.BodyHealth,
+		Vehicle?.TireWear?.Count );
+}

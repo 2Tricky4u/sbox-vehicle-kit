@@ -1,0 +1,9 @@
+{
+  "Title": "Vehicles.Maintenance",
+  "Type": "library",
+  "Org": "local",
+  "Ident": "vehicles_maintenance",
+  "Schema": 1,
+  "IncludeSourceFiles": true,
+  "PackageReferences": []
+}
