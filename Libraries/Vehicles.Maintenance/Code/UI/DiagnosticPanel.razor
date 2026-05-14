@@ -1,67 +1,218 @@
 @using Sandbox
 @using Sandbox.UI
 @using System
+@using System.Linq
 @using Vehicles.Maintenance
+@namespace Vehicles.Maintenance
 
 <root class="diagnostic-panel">
 	@if ( Vehicle?.Config is not null )
 	{
-		<div class="header">@Vehicle.Config.DisplayName</div>
+		<div class="header">
+			<span class="title">@Vehicle.Config.DisplayName</span>
+			@if ( !string.IsNullOrEmpty( _flash ) )
+			{
+				<span class="flash">@_flash</span>
+			}
+		</div>
 
+		<!-- Fuel: not a "repaired" part, just a status read-out + a reminder to use a fuel pump -->
 		<div class="row">
 			<label>Fuel</label>
 			<progress max="1" value=@Vehicle.FuelPct />
 			<label class="value">@($"{Vehicle.Fuel:F1} / {Vehicle.Config.FuelCapacityLitres:F0} L")</label>
 		</div>
 
-		<div class="row">
-			<label>Engine</label>
-			<progress max="1" value=@Vehicle.EngineHealthPct />
-			<button @onclick=@(() => RepairPart( PartKind.Engine ))>Repair</button>
-		</div>
-
-		<div class="row">
-			<label>Body</label>
-			<progress max="1" value=@Vehicle.BodyHealthPct />
-			<button @onclick=@(() => RepairPart( PartKind.Body ))>Repair</button>
-		</div>
+		@RepairRow( "Engine", Vehicle.EngineHealthPct, PartKind.Engine )
+		@RepairRow( "Body", Vehicle.BodyHealthPct, PartKind.Body )
+		@RepairRow( "Battery", Vehicle.BatteryPct, PartKind.Battery )
+		@RepairRow( "Oil", Vehicle.OilPct, PartKind.Oil )
 
 		@for ( int i = 0; i < Vehicle.TireWear.Count; i++ )
 		{
 			int idx = i;
+			var puncMark = Vehicle.IsTirePunctured( idx ) ? " ⚠" : "";
+			var tireDef = PartDefinition.Find( PartKind.Tire );
+			var count = CountInInventory( tireDef );
+			var canRepair = CanRepair( tireDef, count );
 			<div class="row">
-				<label>Tire @(idx + 1)</label>
+				<label>Tire @(idx + 1)@puncMark</label>
 				<progress max="1" value=@(1f - Vehicle.TireWear[idx]) />
-				<button @onclick=@(() => RepairTire( idx ))>Repair</button>
+				<button class=@(canRepair ? "" : "disabled") @onclick=@(() => RepairTire( idx ))>
+					@PartButtonText( tireDef, count )
+				</button>
 			</div>
 		}
 
 		<button class="close" @onclick=@Close>Close</button>
 	}
+	else
+	{
+		<div class="header">No vehicle selected</div>
+		<button class="close" @onclick=@Close>Close</button>
+	}
 </root>
 
 @code {
+	/// <summary>The vehicle being diagnosed. Set by the caller before showing the panel.</summary>
 	public VehicleBase Vehicle { get; set; }
+
+	/// <summary>Connection of the mechanic doing the work. Determines who pays /
+	/// gets paid / whose inventory is consumed. Defaults to local connection if unset.</summary>
+	public Connection Mechanic { get; set; }
+
+	/// <summary>Per-repair payout to the mechanic. Mirror of RepairTool.LabourPayoutPerRepair.</summary>
+	public int LabourPayoutPerRepair { get; set; } = 50;
+
+	/// <summary>Closer hook — caller can wire to remove the panel from its parent.</summary>
 	public Action OnClose { get; set; }
+
+	string _flash;
+	RealTimeUntil _flashClear;
+
+	void Flash( string msg, float seconds = 2.5f )
+	{
+		_flash = msg;
+		_flashClear = seconds;
+	}
+
+	public override void Tick()
+	{
+		base.Tick();
+		if ( _flash is not null && _flashClear < 0 ) _flash = null;
+	}
+
+	int CountInInventory( PartDefinition def )
+	{
+		if ( def is null || VehicleHost.Current is null || Mechanic is null ) return 0;
+		return VehicleHost.Current.GetInventory( Mechanic )?.CountOf( def ) ?? 0;
+	}
+
+	bool CanRepair( PartDefinition def, int count )
+	{
+		if ( Vehicle is null || def is null || Mechanic is null ) return false;
+		if ( VehicleHost.Current is null || !VehicleHost.Current.IsMechanic( Mechanic ) ) return false;
+		return count > 0;
+	}
+
+	string PartButtonText( PartDefinition def, int count )
+	{
+		if ( def is null ) return "No part";
+		return count > 0 ? $"Repair ({count})" : "Out";
+	}
+
+	// Helper that the markup uses to emit a row + Repair button for any PartKind.
+	RenderFragment RepairRow( string label, float pct, PartKind part ) => @<div class="row">
+		<label>@label</label>
+		<progress max="1" value=@pct />
+		@{
+			var def = PartDefinition.Find( part );
+			var count = CountInInventory( def );
+			var canRepair = CanRepair( def, count );
+		}
+		<button class=@(canRepair ? "" : "disabled") @onclick=@(() => RepairPart( part ))>
+			@PartButtonText( def, count )
+		</button>
+	</div>;
 
 	void RepairPart( PartKind part )
 	{
-		// TODO: look up the appropriate PartDefinition for this PartKind in the
-		// mechanic's inventory via VehicleHost.Current.GetInventory(conn), charge
-		// the player, then call Vehicle.RepairRpc(part, amount). For v1 this is
-		// driven through RepairTool instead.
+		if ( !PrecheckRepair( out var inv, out var def, part ) ) return;
+
+		// Gamemode-registered custom action takes precedence over the default flow.
+		if ( RepairActionRegistry.TryInvoke( part, Vehicle, Mechanic ) )
+		{
+			Flash( $"Custom {part} repair invoked" );
+			return;
+		}
+
+		if ( !inv.TryConsume( def, 1 ) )
+		{
+			Flash( $"Out of {def.DisplayName}" );
+			return;
+		}
+
+		Vehicle.RepairRpc( part, def.RepairAmount );
+		VehicleHost.Current.Pay( Mechanic, LabourPayoutPerRepair, $"Repair {part}" );
+		Flash( $"Repaired {part} (+{def.RepairAmount:F0}, paid ${LabourPayoutPerRepair})" );
 	}
 
 	void RepairTire( int idx )
 	{
-		// TODO: same as RepairPart but pass wheelIndex.
+		if ( !PrecheckRepair( out var inv, out var def, PartKind.Tire ) ) return;
+
+		// Note: IRepairAction.Apply doesn't carry wheelIndex, so a custom action
+		// for Tire would apply generically. Default flow handles per-wheel correctly.
+		if ( RepairActionRegistry.TryInvoke( PartKind.Tire, Vehicle, Mechanic ) )
+		{
+			Flash( $"Custom Tire repair invoked" );
+			return;
+		}
+
+		if ( !inv.TryConsume( def, 1 ) )
+		{
+			Flash( $"Out of {def.DisplayName}" );
+			return;
+		}
+
+		Vehicle.RepairRpc( PartKind.Tire, def.RepairAmount, idx );
+		VehicleHost.Current.Pay( Mechanic, LabourPayoutPerRepair, $"Repair tire {idx}" );
+		Flash( $"Repaired Tire {idx + 1} (+{def.RepairAmount:F0}, paid ${LabourPayoutPerRepair})" );
+	}
+
+	bool PrecheckRepair( out IPartInventory inv, out PartDefinition def, PartKind part )
+	{
+		inv = null;
+		def = null;
+		if ( Vehicle is null ) { Flash( "No vehicle" ); return false; }
+		if ( VehicleHost.Current is null ) { Flash( "No host registered" ); return false; }
+
+		// Default Mechanic to the local connection if the caller forgot to set it.
+		Mechanic ??= Connection.Local;
+		if ( Mechanic is null ) { Flash( "No connection" ); return false; }
+
+		if ( !VehicleHost.Current.IsMechanic( Mechanic ) ) { Flash( "Mechanic job required" ); return false; }
+
+		def = PartDefinition.Find( part );
+		if ( def is null ) { Flash( $"No PartDefinition for {part}" ); return false; }
+
+		inv = VehicleHost.Current.GetInventory( Mechanic );
+		if ( inv is null ) { Flash( "No inventory" ); return false; }
+
+		return true;
 	}
 
 	void Close() => OnClose?.Invoke();
 
-	protected override int BuildHash() => HashCode.Combine(
-		Vehicle?.Fuel,
-		Vehicle?.EngineHealth,
-		Vehicle?.BodyHealth,
-		Vehicle?.TireWear?.Count );
+	// Rebuild the panel whenever any visible state changes — including
+	// inventory counts (so button labels track parts going up / down).
+	protected override int BuildHash()
+	{
+		// Hash the inventory counts of each repair part too — without this, the
+		// "Repair (3)" button label wouldn't refresh when a part is consumed.
+		int invHash = 0;
+		if ( VehicleHost.Current is not null && Mechanic is not null )
+		{
+			var inv = VehicleHost.Current.GetInventory( Mechanic );
+			if ( inv is not null )
+			{
+				foreach ( PartKind k in Enum.GetValues<PartKind>() )
+				{
+					var def = PartDefinition.Find( k );
+					if ( def is not null )
+						invHash = HashCode.Combine( invHash, k, inv.CountOf( def ) );
+				}
+			}
+		}
+		// HashCode.Combine maxes out at 8 args; split into two-stage combine.
+		var stateHash = HashCode.Combine(
+			Vehicle?.Fuel,
+			Vehicle?.EngineHealth,
+			Vehicle?.BodyHealth,
+			Vehicle?.BatteryCharge,
+			Vehicle?.OilLevel,
+			Vehicle?.TireWear?.Count,
+			Vehicle?.TirePunctureMask );
+		return HashCode.Combine( stateHash, Mechanic?.SteamId, invHash, _flash );
+	}
 }

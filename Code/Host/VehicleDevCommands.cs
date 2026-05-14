@@ -86,6 +86,10 @@ public static class VehicleDevCommands
 		Log.Info( "  vh.debug                           — toggle DebugLog on nearest" );
 		Log.Info( "  vh.heal                            — fully restore nearest (fuel, engine, body, tires)" );
 		Log.Info( "  vh.cheat                           — toggle owner-side LocalSimulation (solo testing aid)" );
+		Log.Info( "  vh.diag                            — open the DiagnosticPanel for nearest vehicle" );
+		Log.Info( "  vh.parts                           — list .partdef assets" );
+		Log.Info( "  vh.give <partIdent> [count]        — add parts to local mechanic's inventory" );
+		Log.Info( "  vh.mechanic                        — info on toggling mechanic job (stub host = always mechanic)" );
 	}
 
 	[ConCmd( "vh.list" )]
@@ -346,5 +350,88 @@ public static class VehicleDevCommands
 		if ( !TryRequireVehicle( out var v ) ) return;
 		v.LocalSimulation = !v.LocalSimulation;
 		Log.Info( $"[vh] LocalSimulation → {v.LocalSimulation}" );
+	}
+
+	// ── Diagnostic UI + parts inventory (testing the mechanic loop without NPCs) ──
+
+	static DiagnosticPanel _activeDiag;
+
+	[ConCmd( "vh.diag" )]
+	public static void OpenDiagnostic()
+	{
+		if ( !TryRequireVehicle( out var v ) ) return;
+
+		// In s&box panels attach to a ScreenPanel component's RootPanel.
+		// We need a ScreenPanel somewhere in the scene to show HUD.
+		var screen = ActiveScene?.GetAllComponents<ScreenPanel>().FirstOrDefault();
+		if ( screen?.GetPanel() is null )
+		{
+			Log.Warning( "[vh] No ScreenPanel in scene. Add a GameObject with a ScreenPanel component, then re-run vh.diag." );
+			return;
+		}
+
+		// Close existing panel if open.
+		if ( _activeDiag is not null )
+		{
+			_activeDiag.Delete();
+			_activeDiag = null;
+		}
+
+		var panel = new DiagnosticPanel
+		{
+			Vehicle = v,
+			Mechanic = Connection.Local,
+		};
+		panel.Parent = screen.GetPanel();
+		panel.OnClose = () =>
+		{
+			panel.Delete();
+			_activeDiag = null;
+		};
+		_activeDiag = panel;
+		Log.Info( $"[vh] Opened DiagnosticPanel for {v.Config?.DisplayName}. Click Close to dismiss." );
+	}
+
+	[ConCmd( "vh.parts" )]
+	public static void ListParts()
+	{
+		var parts = PartDefinition.All.ToList();
+		Log.Info( $"[vh] {parts.Count} PartDefinition(s):" );
+		foreach ( var p in parts )
+			Log.Info( $"  {p.ResourceName,-25} \"{p.DisplayName}\"  repairs={p.RepairsPart}  amount={p.RepairAmount}  price=${p.Price}" );
+	}
+
+	[ConCmd( "vh.give" )]
+	public static void GivePart( string partIdent, int count = 1 )
+	{
+		if ( VehicleHost.Current is null ) { Log.Warning( "[vh] No host registered." ); return; }
+		var conn = Connection.Local;
+		if ( conn is null ) { Log.Warning( "[vh] No local connection." ); return; }
+		var def = PartDefinition.FindByIdent( partIdent );
+		if ( def is null )
+		{
+			Log.Warning( $"[vh] No PartDefinition '{partIdent}'. Try `vh.parts`." );
+			return;
+		}
+		var inv = VehicleHost.Current.GetInventory( conn );
+		if ( inv is null ) { Log.Warning( "[vh] No inventory." ); return; }
+		inv.Add( def, count );
+		Log.Info( $"[vh] Gave {count}× {def.DisplayName} to {conn.DisplayName}. Total: {inv.CountOf( def )}" );
+	}
+
+	[ConCmd( "vh.mechanic" )]
+	public static void ToggleMechanicJob()
+	{
+		// Only meaningful with the test stub host where IsMechanic is settable;
+		// real adapters route through the gamemode's job system.
+		if ( VehicleHost.Current is CarMaintenanceVehicleHost )
+		{
+			Log.Info( "[vh] Stub host treats every player as a mechanic — toggle has no effect." );
+			Log.Info( "[vh] To test the gating, edit CarMaintenanceVehicleHost.IsMechanic to return false." );
+		}
+		else
+		{
+			Log.Info( "[vh] Mechanic-job toggle requires the host to expose a setter — your registered IVehicleHost doesn't." );
+		}
 	}
 }

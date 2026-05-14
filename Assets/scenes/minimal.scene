@@ -318,7 +318,9 @@
           "OnComponentStart": null,
           "OnComponentUpdate": null,
           "OverrideMassCenter": false,
+          "PreciseContacts": false,
           "RigidbodyFlags": 0,
+          "SleepThreshold": 2,
           "StartAsleep": false
         }
       ],
@@ -424,7 +426,9 @@
           "OnComponentStart": null,
           "OnComponentUpdate": null,
           "OverrideMassCenter": false,
+          "PreciseContacts": false,
           "RigidbodyFlags": 0,
+          "SleepThreshold": 2,
           "StartAsleep": false
         }
       ],
@@ -530,7 +534,9 @@
           "OnComponentStart": null,
           "OnComponentUpdate": null,
           "OverrideMassCenter": false,
+          "PreciseContacts": false,
           "RigidbodyFlags": 0,
+          "SleepThreshold": 2,
           "StartAsleep": false
         }
       ],
@@ -654,76 +660,6 @@
       "OwnerTransfer": 1,
       "Components": [
         {
-          "__type": "Vehicles.Maintenance.VehicleBase",
-          "__guid": "32a3c447-46cd-4009-b47f-9db332d45b60",
-          "__enabled": true,
-          "Flags": 0,
-          "AirDrag": 0.001,
-          "BrakeForce": 30,
-          "Config": "sedan.vcfg",
-          "DebugLog": false,
-          "Downforce": 5000,
-          "EngineBrakingForce": 800,
-          "ForwardGearTorqueMultipliers": [
-            1.8,
-            1.4,
-            1.2,
-            1,
-            0.85
-          ],
-          "FrontWheelCount": 2,
-          "IdleRpm": 800,
-          "ImpactDamageMultiplier": 0.05,
-          "ImpactDamageThreshold": 200,
-          "InputDeadzone": 0.05,
-          "LateralFriction": 0.85,
-          "LocalSimulation": true,
-          "MaxEngineForce": 12000,
-          "OnComponentDestroy": null,
-          "OnComponentDisabled": null,
-          "OnComponentEnabled": null,
-          "OnComponentFixedUpdate": null,
-          "OnComponentStart": null,
-          "OnComponentUpdate": null,
-          "RedlineRpm": 7000,
-          "ReverseTorqueMultiplier": 2,
-          "RollingFriction": 0.05,
-          "SeatAnchors": [],
-          "ShiftDownRpm": 2000,
-          "ShiftUpRpm": 6500,
-          "SkidLateralThreshold": 80,
-          "SteerAngleMax": 25,
-          "SteerFallRate": 12,
-          "SteerRiseRate": 8,
-          "SteerSpeed": 6,
-          "SuspensionDamping": 4,
-          "SuspensionLengthRelaxed": 25,
-          "SuspensionStiffness": 30000,
-          "ThrottleFallRate": 8,
-          "ThrottleRiseRate": 6,
-          "Tune": "new vehicle tune.vtune",
-          "WheelAnchors": [
-            {
-              "_type": "gameobject",
-              "go": "0fd73097-90ef-45ca-bf2c-b4c374db5240"
-            },
-            {
-              "_type": "gameobject",
-              "go": "9e3a587e-1016-4f81-8503-19335b462fed"
-            },
-            {
-              "_type": "gameobject",
-              "go": "7a904ffa-d1fa-47f7-97ff-2d34d8a349a9"
-            },
-            {
-              "_type": "gameobject",
-              "go": "e014ac78-2adb-4803-86ea-69b330bfb3c9"
-            }
-          ],
-          "WheelRadius": 8,
-          "WheelWidth": 4
-        },
-        {
           "__type": "Sandbox.Rigidbody",
           "__guid": "ba87dcfe-7a83-40f1-a1e0-f6485747b51d",
           "__enabled": true,
@@ -754,7 +690,9 @@
           "OnComponentStart": null,
           "OnComponentUpdate": null,
           "OverrideMassCenter": false,
+          "PreciseContacts": false,
           "RigidbodyFlags": 0,
+          "SleepThreshold": 2,
           "StartAsleep": false
         },
         {
@@ -799,6 +737,51 @@
           "OnComponentStart": null,
           "OnComponentUpdate": null,
           "Vehicle": null
+        },
+        {
+          "__type": "Sandbox.WheelJoint",
+          "__guid": "dd92aec3-b23b-4a2d-92e2-c65d95c9b114",
+          "__enabled": false,
+          "Flags": 0,
+          "AnchorBody": null,
+          "Attachment": "Auto",
+          "Body": null,
+          "BreakForce": 0,
+          "BreakTorque": 0,
+          "EnableCollision": false,
+          "EnableSpinMotor": false,
+          "EnableSteering": false,
+          "EnableSteeringLimit": false,
+          "EnableSuspension": false,
+          "EnableSuspensionLimit": false,
+          "LocalFrame1": {
+            "Position": "0,0,0",
+            "Scale": "0,0,0",
+            "Rotation": "0,0,0,0"
+          },
+          "LocalFrame2": {
+            "Position": "0,0,0",
+            "Scale": "0,0,0",
+            "Rotation": "0,0,0,0"
+          },
+          "MaxSpinTorque": 0,
+          "MaxSteeringTorque": 0,
+          "OnBreak": null,
+          "OnComponentDestroy": null,
+          "OnComponentDisabled": null,
+          "OnComponentEnabled": null,
+          "OnComponentFixedUpdate": null,
+          "OnComponentStart": null,
+          "OnComponentUpdate": null,
+          "SpinMotorSpeed": 0,
+          "StartBroken": false,
+          "SteeringDampingRatio": 1,
+          "SteeringHertz": 10,
+          "SteeringLimits": "0,0",
+          "SuspensionDampingRatio": 1,
+          "SuspensionHertz": 10,
+          "SuspensionLimits": "0,0",
+          "TargetSteeringAngle": 0
         }
       ],
       "Children": [
@@ -907,6 +890,43 @@
         }
       ],
       "Children": []
+    },
+    {
+      "__guid": "4e42633a-45cd-426a-87bf-ca0a48d85a45",
+      "__version": 2,
+      "Flags": 0,
+      "Name": "panel",
+      "Position": "112.753937,-63.0054016,41.8623581",
+      "Rotation": "0,0,0,1",
+      "Scale": "1,1,1",
+      "Tags": "",
+      "Enabled": true,
+      "NetworkMode": 2,
+      "NetworkFlags": 0,
+      "NetworkOrphaned": 0,
+      "NetworkTransmit": true,
+      "OwnerTransfer": 1,
+      "Components": [
+        {
+          "__type": "Sandbox.ScreenPanel",
+          "__guid": "58b7ba36-cf42-48cb-8b97-ca6a1f13a7cc",
+          "__enabled": true,
+          "Flags": 0,
+          "AutoScreenScale": true,
+          "OnComponentDestroy": null,
+          "OnComponentDisabled": null,
+          "OnComponentEnabled": null,
+          "OnComponentFixedUpdate": null,
+          "OnComponentStart": null,
+          "OnComponentUpdate": null,
+          "Opacity": 1,
+          "Scale": 1,
+          "ScaleStrategy": "ConsistentHeight",
+          "TargetCamera": null,
+          "ZIndex": 100
+        }
+      ],
+      "Children": []
     }
   ],
   "SceneProperties": {
@@ -931,13 +951,13 @@
       "CustomBounds": false
     },
     "GameObjectSystems": {
+      "Sandbox.MovieMaker.MovieRecorderSystem": {
+        "DisableClientRecording": false
+      },
       "Sandbox.Clutter.ClutterGridSystem": {
         "Storage": {
           "$blob": "2aba01e5-163f-4d18-9b19-bb2470d0861f"
         }
-      },
-      "Sandbox.MovieMaker.MovieRecorderSystem": {
-        "DisableClientRecording": false
       },
       "Sandbox.SelectionSetsSystem": {
         "Data": {
