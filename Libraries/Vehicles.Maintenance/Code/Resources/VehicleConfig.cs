@@ -88,11 +88,22 @@ public sealed class VehicleConfig : GameResource
 	public int RepairBaseCost { get; set; } = 50;
 
 	// ─── Lookup ───────────────────────────────────────────────────────
-	public static VehicleConfig Find( string ident ) =>
+
+	/// <summary>All real .vcfg assets in the project. Filters out engine
+	/// false-positives: s&amp;box's resource system suffix-matches `.vcfg`
+	/// against `.cfg`, so files in <c>core/cfg/</c> (like <c>configschema.cfg</c>,
+	/// <c>machine_convars.cfg</c>) get returned by <c>ResourceLibrary.GetAll</c>
+	/// with all-default values. We reject anything whose <c>ResourcePath</c>
+	/// starts with <c>cfg/</c> to keep the engine config files out.</summary>
+	public static IEnumerable<VehicleConfig> All =>
 		ResourceLibrary.GetAll<VehicleConfig>()
-			.FirstOrDefault( v => v.ResourceName == ident );
+			.Where( v => v is not null
+				&& !string.IsNullOrEmpty( v.ResourcePath )
+				&& !v.ResourcePath.StartsWith( "cfg/", System.StringComparison.OrdinalIgnoreCase ) );
+
+	public static VehicleConfig Find( string ident ) =>
+		All.FirstOrDefault( v => v.ResourceName == ident );
 
 	public static IEnumerable<VehicleConfig> WithTag( string tag ) =>
-		ResourceLibrary.GetAll<VehicleConfig>()
-			.Where( v => v.Tags != null && v.Tags.Contains( tag ) );
+		All.Where( v => v.Tags != null && v.Tags.Contains( tag ) );
 }

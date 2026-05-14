@@ -194,7 +194,7 @@
           "__guid": "0715cb55-1733-4f5e-8560-c288b8695631",
           "__enabled": true,
           "Flags": 0,
-          "Center": "-115.235718,32538.9355,-5",
+          "Center": "1886.78394,32451.4473,-5",
           "ColliderFlags": 0,
           "Elasticity": null,
           "Friction": null,
@@ -210,7 +210,7 @@
           "OnTriggerEnter": null,
           "OnTriggerExit": null,
           "RollingResistance": null,
-          "Scale": "975.579712,65319.5859,10",
+          "Scale": "4979.61914,65494.5625,10",
           "Static": false,
           "Surface": null,
           "SurfaceVelocity": "0,0,0"
@@ -661,15 +661,15 @@
           "AirDrag": 0.001,
           "BrakeForce": 30,
           "Config": "sedan.vcfg",
-          "DebugLog": true,
+          "DebugLog": false,
           "Downforce": 5000,
           "EngineBrakingForce": 800,
           "ForwardGearTorqueMultipliers": [
-            2.5,
             1.8,
-            1.3,
+            1.4,
+            1.2,
             1,
-            0.8
+            0.85
           ],
           "FrontWheelCount": 2,
           "IdleRpm": 800,
@@ -678,7 +678,7 @@
           "InputDeadzone": 0.05,
           "LateralFriction": 0.85,
           "LocalSimulation": true,
-          "MaxEngineForce": 80000,
+          "MaxEngineForce": 12000,
           "OnComponentDestroy": null,
           "OnComponentDisabled": null,
           "OnComponentEnabled": null,
@@ -690,7 +690,8 @@
           "RollingFriction": 0.05,
           "SeatAnchors": [],
           "ShiftDownRpm": 2000,
-          "ShiftUpRpm": 6000,
+          "ShiftUpRpm": 6500,
+          "SkidLateralThreshold": 80,
           "SteerAngleMax": 25,
           "SteerFallRate": 12,
           "SteerRiseRate": 8,
@@ -700,7 +701,7 @@
           "SuspensionStiffness": 30000,
           "ThrottleFallRate": 8,
           "ThrottleRiseRate": 6,
-          "Tune": null,
+          "Tune": "new vehicle tune.vtune",
           "WheelAnchors": [
             {
               "_type": "gameobject",
@@ -930,11 +931,6 @@
       "CustomBounds": false
     },
     "GameObjectSystems": {
-      "Sandbox.SelectionSetsSystem": {
-        "Data": {
-          "SelectionSets": []
-        }
-      },
       "Sandbox.Clutter.ClutterGridSystem": {
         "Storage": {
           "$blob": "2aba01e5-163f-4d18-9b19-bb2470d0861f"
@@ -942,6 +938,11 @@
       },
       "Sandbox.MovieMaker.MovieRecorderSystem": {
         "DisableClientRecording": false
+      },
+      "Sandbox.SelectionSetsSystem": {
+        "Data": {
+          "SelectionSets": []
+        }
       }
     }
   },

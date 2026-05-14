@@ -131,7 +131,10 @@ public sealed partial class VehicleBase
 		_prevRpm = EngineRpm;
 	}
 
-	void SetGear( int g )
+	/// <summary>Public so dev console / admin tools can force a gear. Auto-shift
+	/// will compete with this if RPM differs from the new gear's expected range —
+	/// for testing purposes, set ThrottleInput and the powertrain will harmonize.</summary>
+	public void SetGear( int g )
 	{
 		if ( g == CurrentGear ) return;
 		var old = CurrentGear;

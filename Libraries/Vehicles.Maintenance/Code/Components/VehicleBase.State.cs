@@ -46,6 +46,31 @@ public sealed partial class VehicleBase
 		VehicleEvents.RaiseRefuel( this, litres );
 	}
 
+	/// <summary>Apply damage directly (outside of physics collisions). Used by
+	/// dev console commands, scripted events, gamemode admin tools.
+	/// Collision damage in <see cref="VehicleBase.Damage"/> remains separate.</summary>
+	[Rpc.Owner]
+	public void DamageRpc( PartKind part, float amount, int wheelIndex = -1 )
+	{
+		if ( Config == null ) return;
+
+		switch ( part )
+		{
+			case PartKind.Engine:
+				EngineHealth = MathF.Max( 0f, EngineHealth - amount );
+				break;
+			case PartKind.Body:
+				BodyHealth = MathF.Max( 0f, BodyHealth - amount );
+				break;
+			case PartKind.Tire:
+				if ( wheelIndex >= 0 && wheelIndex < TireWear.Count )
+					TireWear[wheelIndex] = MathF.Min( 1f, TireWear[wheelIndex] + amount / 100f );
+				break;
+		}
+
+		VehicleEvents.RaiseDamage( this, part, amount );
+	}
+
 	[Rpc.Owner]
 	public void RepairRpc( PartKind part, float amount, int wheelIndex = -1 )
 	{

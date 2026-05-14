@@ -55,6 +55,12 @@ public sealed class RepairTool : Component
 			return;
 		}
 
+		// Gamemode-registered custom action takes precedence over the default flow.
+		// Example: gamemode wants a minigame for engine repair, or a different
+		// pricing model. Registry returns true if it ran the alternative.
+		if ( RepairActionRegistry.TryInvoke( CurrentPart.RepairsPart, vehicle, conn ) )
+			return;
+
 		var inv = VehicleHost.Current.GetInventory( conn );
 		if ( inv is null || !inv.TryConsume( CurrentPart, 1 ) )
 		{
