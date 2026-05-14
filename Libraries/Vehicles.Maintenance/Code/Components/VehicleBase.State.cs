@@ -10,14 +10,30 @@ public sealed partial class VehicleBase
 	[Sync] public float EngineHealth { get; set; }
 	[Sync] public float BodyHealth { get; set; }
 	[Sync] public NetList<float> TireWear { get; set; } = new();
+	[Sync] public float BatteryCharge { get; set; }   // 0..BatteryMaxCharge
+	[Sync] public float OilLevel { get; set; }        // 0..OilMaxLevel
+
+	/// <summary>Battery scale max (0..N). Hardcoded for v1; promote to VehicleConfig
+	/// once the schema unlocks for v1.1.</summary>
+	public const float BatteryMaxCharge = 100f;
+
+	/// <summary>Oil level scale max (0..N). Same v1 hardcoding rationale.</summary>
+	public const float OilMaxLevel = 100f;
 
 	// ─── Derived (no sync needed — compute from synced primitives) ────
 	public float FuelPct => Config is null ? 0f : Fuel / Config.FuelCapacityLitres;
 	public float EngineHealthPct => Config is null ? 0f : EngineHealth / Config.EngineMaxHealth;
 	public float BodyHealthPct => Config is null ? 0f : BodyHealth / Config.BodyMaxHealth;
+	public float BatteryPct => BatteryCharge / BatteryMaxCharge;
+	public float OilPct => OilLevel / OilMaxLevel;
 
-	/// <summary>Behaviour gate: can the engine even crank right now?</summary>
-	public bool CanStartEngine => Fuel > 0.1f && EngineHealth > 5f;
+	/// <summary>Behaviour gate: can the engine even crank right now?
+	/// Requires fuel, engine health AND battery charge.</summary>
+	public bool CanStartEngine => Fuel > 0.1f && EngineHealth > 5f && BatteryCharge > 5f;
+
+	/// <summary>True when oil is critically low — engine wear accelerates.
+	/// See Damage.cs TickWear for the scaling.</summary>
+	public bool IsLowOil => OilLevel < OilMaxLevel * 0.2f;
 
 	/// <summary>Effective torque after maintenance penalties.</summary>
 	public float EffectiveTorque
@@ -66,6 +82,12 @@ public sealed partial class VehicleBase
 				if ( wheelIndex >= 0 && wheelIndex < TireWear.Count )
 					TireWear[wheelIndex] = MathF.Min( 1f, TireWear[wheelIndex] + amount / 100f );
 				break;
+			case PartKind.Battery:
+				BatteryCharge = MathF.Max( 0f, BatteryCharge - amount );
+				break;
+			case PartKind.Oil:
+				OilLevel = MathF.Max( 0f, OilLevel - amount );
+				break;
 		}
 
 		VehicleEvents.RaiseDamage( this, part, amount );
@@ -93,7 +115,12 @@ public sealed partial class VehicleBase
 						TirePunctureMask &= ~(1u << wheelIndex);
 				}
 				break;
-			// TODO: Battery, Oil
+			case PartKind.Battery:
+				BatteryCharge = MathF.Min( BatteryCharge + amount, BatteryMaxCharge );
+				break;
+			case PartKind.Oil:
+				OilLevel = MathF.Min( OilLevel + amount, OilMaxLevel );
+				break;
 		}
 
 		VehicleEvents.RaiseRepair( this, part, amount );

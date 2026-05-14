@@ -130,7 +130,7 @@ public sealed partial class VehicleBase
 			minTireHealth = MathF.Min( minTireHealth, 1f - TireWear[i] );
 		Log.Info( $"[Vehicle]   maint: fuel={Fuel:F1}L ({FuelPct * 100:F0}%)  engine={EngineHealth:F0}/{Config?.EngineMaxHealth:F0} ({EngineHealthPct * 100:F0}%)  " +
 			$"body={BodyHealth:F0}/{Config?.BodyMaxHealth:F0} ({BodyHealthPct * 100:F0}%)  minTire={minTireHealth * 100:F0}%  " +
-			$"punctures=0x{TirePunctureMask:X}" );
+			$"battery={BatteryPct * 100:F0}%  oil={OilPct * 100:F0}%{(IsLowOil ? " ⚠LOW" : "")}  punctures=0x{TirePunctureMask:X}" );
 
 		// Line 3: tune + effective values (what the wheel sim actually consumes)
 		var tuneName = Tune?.PresetName ?? "(none)";

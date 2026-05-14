@@ -42,6 +42,18 @@ public sealed partial class VehicleBase
 
 	float _prevRpm;
 
+	/// <summary>While >0, auto-shift logic is suppressed so a manually-set
+	/// gear sticks. Decremented each TickPowertrain. Set via LockShifts().</summary>
+	float _shiftLockTimer;
+
+	/// <summary>Suppress auto-up/down shifts for the given duration. Used by
+	/// dev console (vh.shift) and any future manual transmission UI so a
+	/// player-chosen gear isn't immediately overridden by RPM-based logic.</summary>
+	public void LockShifts( float seconds = 5f )
+	{
+		_shiftLockTimer = MathF.Max( _shiftLockTimer, seconds );
+	}
+
 	/// <summary>Multiplier applied to engine force in Wheels.cs.
 	/// Returns 0 in neutral, scaled values in forward/reverse gears.</summary>
 	public float GearTorqueMultiplier
@@ -119,11 +131,18 @@ public sealed partial class VehicleBase
 		var rpmRate = (targetRpm > EngineRpm) ? 12f : 6f;
 		EngineRpm = MathX.Lerp( EngineRpm, targetRpm, MathX.Clamp( rpmRate * dt, 0f, 1f ) );
 
-		// ── Auto-shift up/down based on RPM ──
-		if ( CurrentGear > 0 && CurrentGear < ForwardGearCount && EngineRpm > ShiftUpRpm )
-			SetGear( CurrentGear + 1 );
-		else if ( CurrentGear > 1 && EngineRpm < ShiftDownRpm )
-			SetGear( CurrentGear - 1 );
+		// ── Auto-shift up/down based on RPM (skipped while locked) ──
+		if ( _shiftLockTimer > 0f )
+		{
+			_shiftLockTimer = MathF.Max( 0f, _shiftLockTimer - dt );
+		}
+		else
+		{
+			if ( CurrentGear > 0 && CurrentGear < ForwardGearCount && EngineRpm > ShiftUpRpm )
+				SetGear( CurrentGear + 1 );
+			else if ( CurrentGear > 1 && EngineRpm < ShiftDownRpm )
+				SetGear( CurrentGear - 1 );
+		}
 
 		// ── Redline event (one-shot when crossing) ──
 		if ( EngineRpm >= RedlineRpm && _prevRpm < RedlineRpm )

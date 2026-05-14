@@ -113,6 +113,7 @@ public static class VehicleDevCommands
 		var spdKmh = MathF.Abs( (v.Body?.Velocity.Length ?? 0) * 0.0254f * 3.6f );
 		Log.Info( $"  velocity={v.Body?.Velocity}  ({spdKmh:F1} km/h)" );
 		Log.Info( $"  fuel={v.Fuel:F2}L / {v.Config?.FuelCapacityLitres:F0}L  engine={v.EngineHealth:F0} / {v.Config?.EngineMaxHealth:F0}  body={v.BodyHealth:F0} / {v.Config?.BodyMaxHealth:F0}" );
+		Log.Info( $"  battery={v.BatteryCharge:F0}/{VehicleBase.BatteryMaxCharge:F0} ({v.BatteryPct * 100:F0}%)  oil={v.OilLevel:F0}/{VehicleBase.OilMaxLevel:F0} ({v.OilPct * 100:F0}%)  lowOil={v.IsLowOil}" );
 		var tireSb = new StringBuilder( "  tireWear=[" );
 		for ( int i = 0; i < v.TireWear.Count; i++ ) tireSb.Append( $"{v.TireWear[i]:F2}{(i == v.TireWear.Count - 1 ? "" : ", ")}" );
 		tireSb.Append( $"]  punctureMask=0x{v.TirePunctureMask:X}" );
@@ -222,9 +223,14 @@ public static class VehicleDevCommands
 	public static void SetFuel( float litres )
 	{
 		if ( !TryRequireVehicle( out var v ) ) return;
-		// No direct "SetFuel" RPC — do a damage-then-refuel.
-		v.Fuel = MathX.Clamp( litres, 0f, v.Config?.FuelCapacityLitres ?? 50f );
-		Log.Info( $"[vh] Fuel set to {v.Fuel:F1}L" );
+		var cap = v.Config?.FuelCapacityLitres ?? 50f;
+		var target = MathX.Clamp( litres, 0f, cap );
+		var delta = target - v.Fuel;
+		// Use RefuelRpc so OnRefuel listeners (audio, VFX) fire even when setting absolute.
+		// Negative delta becomes a no-op in RefuelRpc (it only adds), so for drains we set directly.
+		if ( delta > 0 ) v.RefuelRpc( delta );
+		else v.Fuel = target;
+		Log.Info( $"[vh] Fuel set to {v.Fuel:F1}L (delta {delta:+0.0;-0.0})" );
 	}
 
 	[ConCmd( "vh.heal" )]
@@ -233,10 +239,12 @@ public static class VehicleDevCommands
 		if ( !TryRequireVehicle( out var v ) ) return;
 		v.RepairRpc( PartKind.Engine, 9999f );
 		v.RepairRpc( PartKind.Body, 9999f );
+		v.RepairRpc( PartKind.Battery, 9999f );
+		v.RepairRpc( PartKind.Oil, 9999f );
 		for ( int i = 0; i < v.TireWear.Count; i++ )
 			v.RepairRpc( PartKind.Tire, 9999f, i );
 		v.RefuelRpc( v.Config?.FuelCapacityLitres ?? 50f );
-		Log.Info( "[vh] Fully healed nearest vehicle." );
+		Log.Info( "[vh] Fully healed nearest vehicle (engine, body, battery, oil, tires, fuel)." );
 	}
 
 	// ── Powertrain / tune ─────────────────────────────────────────────
@@ -246,7 +254,8 @@ public static class VehicleDevCommands
 	{
 		if ( !TryRequireVehicle( out var v ) ) return;
 		v.SetGear( gear );
-		Log.Info( $"[vh] Forced gear {gear} (auto-shift may re-adjust based on RPM)" );
+		v.LockShifts( 5f ); // suppress auto-shift for 5 seconds so the chosen gear actually sticks
+		Log.Info( $"[vh] Forced gear {gear} (auto-shift suppressed for 5s)" );
 	}
 
 	[ConCmd( "vh.tune" )]

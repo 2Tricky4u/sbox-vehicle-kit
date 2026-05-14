@@ -16,9 +16,10 @@ public sealed partial class VehicleBase : Component.ICollisionListener
 		if ( Config == null ) return;
 
 		var speedKmh = Body.Velocity.Length * 0.036f;
+		var engineRunning = IsEngineRunning;
 
 		// Fuel burn — only when throttle is engaged (idle consumption ignored for v1)
-		if ( ThrottleInput > 0.1f && CanStartEngine )
+		if ( ThrottleInput > 0.1f && engineRunning )
 		{
 			var distanceKm = (speedKmh * dt) / 3600f;
 			var litres = distanceKm * (Config.FuelConsumptionLPer100Km / 100f);
@@ -30,6 +31,27 @@ public sealed partial class VehicleBase : Component.ICollisionListener
 		{
 			for ( int i = 0; i < TireWear.Count; i++ )
 				TireWear[i] = MathF.Min( 1f, TireWear[i] + dt * 0.001f );
+		}
+
+		// Battery slowly drains while engine runs (alternator ≈ break-even but not perfect).
+		// Drains ~5% per minute of engine-on time. Empty battery → engine won't crank.
+		if ( engineRunning )
+			BatteryCharge = MathF.Max( 0f, BatteryCharge - dt * (BatteryMaxCharge / 1200f) );
+
+		// Oil drains with mileage. Drains ~10% per real-time minute at top speed
+		// (much slower at low speed). Critical (<20%) accelerates engine wear 5×.
+		if ( engineRunning && speedKmh > 1f )
+		{
+			var maxKmh = Config.MaxSpeedKmh > 0 ? Config.MaxSpeedKmh : 140f;
+			var loadFactor = MathF.Min( 1f, speedKmh / maxKmh );
+			OilLevel = MathF.Max( 0f, OilLevel - dt * loadFactor * (OilMaxLevel / 600f) );
+		}
+
+		// Low oil chews up engine health — mechanic gameplay reason to keep oil topped up.
+		if ( engineRunning && IsLowOil && ThrottleInput > 0.1f )
+		{
+			var wearRate = dt * 0.5f * (1f - OilLevel / OilMaxLevel); // ramps as oil approaches 0
+			EngineHealth = MathF.Max( 0f, EngineHealth - wearRate );
 		}
 	}
 

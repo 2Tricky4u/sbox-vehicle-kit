@@ -41,18 +41,22 @@ public sealed partial class VehicleBase : Component
 		Fuel = Config.FuelCapacityLitres;
 		EngineHealth = Config.EngineMaxHealth;
 		BodyHealth = Config.BodyMaxHealth;
+		BatteryCharge = BatteryMaxCharge;
+		OilLevel = OilMaxLevel;
 		EnsureTireWearList();
 	}
 
 	protected override void OnStart()
 	{
 		DebugSubscribe();
+		SoundSubscribe();
 		VehicleEvents.RaiseSpawned( this );
 	}
 
 	protected override void OnDestroy()
 	{
 		DebugUnsubscribe();
+		SoundUnsubscribe();
 		VehicleEvents.RaiseDestroyed( this );
 	}
 
@@ -62,6 +66,7 @@ public sealed partial class VehicleBase : Component
 		TickInput();
 		TickWear( Time.Delta );
 		TickSystems();
+		TickSound( Time.Delta );
 	}
 
 	protected override void OnFixedUpdate()
