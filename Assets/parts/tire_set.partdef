@@ -1,0 +1,10 @@
+{
+  "DisplayName": "Tire Set",
+  "RepairsPart": "Tire",
+  "RepairAmount": 50,
+  "Price": 150,
+  "ModelPath": null,
+  "IconPath": null,
+  "__references": [],
+  "__version": 0
+}

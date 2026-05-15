@@ -118,11 +118,19 @@ public sealed partial class VehicleBase
 		_debugLogTimer = 0f;
 
 		var spdKmh = MathF.Abs( ForwardSpeedMs() * 3.6f );
+		var totalKmh = (Body?.Velocity.Length ?? 0) * 0.0254f * 3.6f;
+		var angVel = Body?.AngularVelocity.Length ?? 0;
+		// Diagnostic: if Rigidbody has its own LinearDamping set in the inspector,
+		// it'll cap velocity independently of our AirDrag. Surface the value here.
+		float linDamp = 0f;
+		try { linDamp = Body?.LinearDamping ?? 0f; } catch { }
 
-		// Line 1: driving state
-		Log.Info( $"[Vehicle] ── tick ── {spdKmh:F1}km/h  gear={GearName( CurrentGear )} {EngineRpm:F0}rpm  " +
-			$"throttle={ThrottleInput:F2} (raw={_rawThrottle:F2})  steer={_currentSteerAngle:F1}° (in={SteerInput:F2})  " +
-			$"engine={engineForceMag:F0}N  grounded={groundedCount}/{WheelAnchors.Count}" );
+		// Line 1: driving state — including TOTAL speed (Body.Velocity.Length) so
+		// we can spot when forward-projected km/h plateaus while total still climbs
+		// (means the car is pitching/yawing and the "forward" axis has rotated).
+		Log.Info( $"[Vehicle] ── tick ── fwd={spdKmh:F1}km/h  total={totalKmh:F1}km/h  angVel={angVel:F2}  rbDamp={linDamp:F2}  " +
+			$"gear={GearName( CurrentGear )} {EngineRpm:F0}rpm  throttle={ThrottleInput:F2} (raw={_rawThrottle:F2})  " +
+			$"steer={_currentSteerAngle:F1}° (in={SteerInput:F2})  engine={engineForceMag:F0}N  grounded={groundedCount}/{WheelAnchors.Count}" );
 
 		// Line 2: maintenance state
 		var minTireHealth = 1f;

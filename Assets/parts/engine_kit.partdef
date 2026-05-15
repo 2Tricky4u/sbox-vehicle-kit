@@ -1,0 +1,10 @@
+{
+  "DisplayName": "Engine Kit",
+  "RepairsPart": "Engine",
+  "RepairAmount": 50,
+  "Price": 200,
+  "ModelPath": null,
+  "IconPath": null,
+  "__references": [],
+  "__version": 0
+}

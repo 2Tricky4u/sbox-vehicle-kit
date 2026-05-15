@@ -1,0 +1,10 @@
+{
+  "DisplayName": "Body Panel",
+  "RepairsPart": "Body",
+  "RepairAmount": 40,
+  "Price": 100,
+  "ModelPath": null,
+  "IconPath": null,
+  "__references": [],
+  "__version": 0
+}

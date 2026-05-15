@@ -1,0 +1,10 @@
+{
+  "DisplayName": "Battery",
+  "RepairsPart": "Battery",
+  "RepairAmount": 100,
+  "Price": 80,
+  "ModelPath": null,
+  "IconPath": null,
+  "__references": [],
+  "__version": 0
+}

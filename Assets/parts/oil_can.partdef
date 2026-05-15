@@ -1,0 +1,10 @@
+{
+  "DisplayName": "Oil Can",
+  "RepairsPart": "Oil",
+  "RepairAmount": 100,
+  "Price": 30,
+  "ModelPath": null,
+  "IconPath": null,
+  "__references": [],
+  "__version": 0
+}

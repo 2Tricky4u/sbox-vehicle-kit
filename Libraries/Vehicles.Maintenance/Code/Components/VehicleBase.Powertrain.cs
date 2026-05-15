@@ -24,8 +24,13 @@ public sealed partial class VehicleBase
 	[Property, Group( "Powertrain" ), Range( 3000, 11000 )]
 	public float ShiftUpRpm { get; set; } = 6000f;
 
-	[Property, Group( "Powertrain" ), Range( 800, 5000 )]
-	public float ShiftDownRpm { get; set; } = 2000f;
+	[Property, Group( "Powertrain" ), Range( 500, 5000 )]
+	public float ShiftDownRpm { get; set; } = 1500f;
+
+	/// <summary>Auto-applied lock duration (seconds) after every gear change.
+	/// Prevents oscillation when RPM smoothing transients cross thresholds.</summary>
+	[Property, Group( "Powertrain" ), Range( 0.1f, 2f )]
+	public float ShiftCooldown { get; set; } = 0.4f;
 
 	/// <summary>Per-gear torque multipliers (1st gear strongest, last gear weakest).
 	/// Engine force in Wheels.cs scales by ForwardGearTorqueMultipliers[CurrentGear-1].</summary>
@@ -42,16 +47,20 @@ public sealed partial class VehicleBase
 
 	float _prevRpm;
 
-	/// <summary>While >0, auto-shift logic is suppressed so a manually-set
-	/// gear sticks. Decremented each TickPowertrain. Set via LockShifts().</summary>
-	float _shiftLockTimer;
+	/// <summary>Real-time-tracked timer (auto-advances with sandbox real time
+	/// regardless of dt source). When negative, lock has expired.
+	/// Replaces the previous `_shiftLockTimer -= dt` approach which decremented
+	/// inconsistently in OnFixedUpdate across different framerates.</summary>
+	TimeUntil _shiftAllowedAt = 0f;
 
 	/// <summary>Suppress auto-up/down shifts for the given duration. Used by
-	/// dev console (vh.shift) and any future manual transmission UI so a
-	/// player-chosen gear isn't immediately overridden by RPM-based logic.</summary>
+	/// dev console (vh.shift) and after every SetGear so back-to-back shifts
+	/// can't oscillate when RPM smoothing transients cross thresholds.</summary>
 	public void LockShifts( float seconds = 5f )
 	{
-		_shiftLockTimer = MathF.Max( _shiftLockTimer, seconds );
+		// Only extend the lock — don't shorten it if a longer one is already pending.
+		var remaining = (float)_shiftAllowedAt;
+		if ( seconds > remaining ) _shiftAllowedAt = seconds;
 	}
 
 	/// <summary>Multiplier applied to engine force in Wheels.cs.
@@ -104,12 +113,7 @@ public sealed partial class VehicleBase
 		float targetRpm;
 		if ( CurrentGear > 0 )
 		{
-			var gearN = MathF.Max( 1f, ForwardGearCount );
-			var gearMaxKmh = maxKmh * (CurrentGear / gearN);
-			var gearMinKmh = (CurrentGear > 1) ? maxKmh * ((CurrentGear - 1) / gearN) * 0.7f : 0f;
-			var range = MathF.Max( 1f, gearMaxKmh - gearMinKmh );
-			var t = MathX.Clamp( (speedKmh - gearMinKmh) / range, 0f, 1.05f );
-			targetRpm = MathX.Lerp( IdleRpm, RedlineRpm, t );
+			targetRpm = TargetRpmForGear( CurrentGear, speedKmh );
 			// Stationary throttle revving (player can rev at the line)
 			if ( speedKmh < 5f && ThrottleInput > 0.1f )
 				targetRpm = MathX.Lerp( targetRpm, RedlineRpm * 0.7f, ThrottleInput );
@@ -132,11 +136,8 @@ public sealed partial class VehicleBase
 		EngineRpm = MathX.Lerp( EngineRpm, targetRpm, MathX.Clamp( rpmRate * dt, 0f, 1f ) );
 
 		// ── Auto-shift up/down based on RPM (skipped while locked) ──
-		if ( _shiftLockTimer > 0f )
-		{
-			_shiftLockTimer = MathF.Max( 0f, _shiftLockTimer - dt );
-		}
-		else
+		// _shiftAllowedAt < 0 means the cooldown set by the previous SetGear has expired.
+		if ( _shiftAllowedAt < 0f )
 		{
 			if ( CurrentGear > 0 && CurrentGear < ForwardGearCount && EngineRpm > ShiftUpRpm )
 				SetGear( CurrentGear + 1 );
@@ -150,14 +151,36 @@ public sealed partial class VehicleBase
 		_prevRpm = EngineRpm;
 	}
 
-	/// <summary>Public so dev console / admin tools can force a gear. Auto-shift
-	/// will compete with this if RPM differs from the new gear's expected range —
-	/// for testing purposes, set ThrottleInput and the powertrain will harmonize.</summary>
+	/// <summary>Public so dev console / admin tools can force a gear. Each shift
+	/// auto-locks for <see cref="ShiftCooldown"/> seconds AND snaps RPM to the
+	/// new gear's natural value at current speed — avoids the transient lerp
+	/// dipping across ShiftDown/ShiftUp thresholds and re-triggering a shift.</summary>
 	public void SetGear( int g )
 	{
 		if ( g == CurrentGear ) return;
 		var old = CurrentGear;
 		CurrentGear = g;
+		// Snap RPM so the smoothing doesn't dip below ShiftDown right after upshift.
+		var speedKmh = MathF.Abs( ForwardSpeedMs() * 3.6f );
+		EngineRpm = TargetRpmForGear( g, speedKmh );
+		LockShifts( ShiftCooldown );
 		VehicleEvents.RaiseShifted( this, old, g );
+	}
+
+	/// <summary>RPM the engine should naturally show in the given gear at the
+	/// given speed. Pulled out of TickPowertrain so SetGear can pre-snap to it.
+	/// Wider overlap (0.5 multiplier) than before to avoid borderline cases.</summary>
+	float TargetRpmForGear( int gear, float speedKmh )
+	{
+		if ( gear <= 0 || Config is null ) return IdleRpm;
+		var maxKmh = Config.MaxSpeedKmh > 0 ? Config.MaxSpeedKmh : 140f;
+		var gearN = MathF.Max( 1f, ForwardGearCount );
+		var gearMaxKmh = maxKmh * (gear / gearN);
+		// 0.5 (was 0.7) — more overlap means each gear has more room before
+		// crossing the next gear's territory; less likely to oscillate.
+		var gearMinKmh = (gear > 1) ? maxKmh * ((gear - 1) / gearN) * 0.5f : 0f;
+		var range = MathF.Max( 1f, gearMaxKmh - gearMinKmh );
+		var t = MathX.Clamp( (speedKmh - gearMinKmh) / range, 0f, 1.05f );
+		return MathX.Lerp( IdleRpm, RedlineRpm, t );
 	}
 }
