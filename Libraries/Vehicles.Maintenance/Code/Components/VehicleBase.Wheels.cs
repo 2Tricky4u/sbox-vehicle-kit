@@ -3,18 +3,30 @@ using System;
 
 namespace Vehicles.Maintenance;
 
-// Arcade wheel sim — port of https://github.com/SergeyMakeev/ArcadeCarPhysics
-// via https://github.com/matekdev/sbox-arcade-car-physics
+// Kinematic wheel sim — bypasses Source 2's contact damping by integrating
+// body motion ourselves rather than letting the physics engine do it.
 //
-// Key details vs naïve approaches that fail in Source 2:
-//  • Force divided by dt before ApplyForceAt (per-step impulse → instantaneous N).
-//  • Force applied at TouchTrace.HitPosition, slightly above ground (-wsDown * 0.2).
-//  • Contact basis derived from cross products of contact normal + wheel forward,
-//    NOT vehicle world axes (correct on slopes).
-//  • 3 raycasts per wheel (left edge / center / right edge) to reject edge cases.
-//  • Speed-target engine model: force = (target - current) * mass, scales itself
-//    so the car self-limits to MaxSpeed without hand-tuned terminal velocity.
-//  • s&box uses INCHES; m/s ↔ inches/sec is * 0.0254.
+// Key decision: in OnAwake we set Body.MotionEnabled = false. Source 2 stops
+// integrating the body. We manually compute every per-tick force/influence,
+// accumulate into our authoritative `_vel` vector, then move via:
+//     WorldPosition += _vel * dt;
+//
+// The Rigidbody is kept for collision DETECTION (so Damage.cs ICollisionListener
+// still fires) and for mass / collider geometry. We mirror _vel back to
+// Body.Velocity at end-of-tick so debug log + downstream readers see consistent
+// values.
+//
+// Drawing on matekdev/sbox-arcade-car-physics for the conceptual layout
+// (per-wheel state, raycast suspension, slip-velocity friction) but every
+// force application is converted to direct velocity arithmetic.
+//
+// v1 limitations (documented):
+//  • Walls don't physically push back — body teleports through if you ram one.
+//    OnCollision events still fire so Damage.cs damage routing works.
+//    Proper wall response = future shapecast pass (~50 lines, deferred).
+//  • No pitch/roll dynamics — body always upright, follows yaw only.
+//  • Per-wheel suspension forces are SUMMED into a single Z velocity change
+//    (no differential lift causing pitch/roll). Arcade-correct, sim-incorrect.
 public sealed partial class VehicleBase
 {
 	// ── Suspension ────────────────────────────────────────────────────
@@ -31,9 +43,6 @@ public sealed partial class VehicleBase
 	[Property, Group( "Wheel" ), Range( 2, 30 )]
 	public float WheelRadius { get; set; } = 8f;
 
-	[Property, Group( "Wheel" ), Range( 0.5f, 10f )]
-	public float WheelWidth { get; set; } = 4f;
-
 	[Property, Group( "Wheel" ), Range( 0, 1 )]
 	public float LateralFriction { get; set; } = 0.85f;
 
@@ -43,8 +52,6 @@ public sealed partial class VehicleBase
 	[Property, Group( "Wheel" ), Range( 1, 200 )]
 	public float BrakeForce { get; set; } = 30f;
 
-	/// <summary>Lateral velocity (inches/sec) above which a wheel is considered skidding.
-	/// Fires OnWheelSkidStarted / OnWheelSkidStopped events for VFX/audio hooks.</summary>
 	[Property, Group( "Wheel" ), Range( 10, 400 )]
 	public float SkidLateralThreshold { get; set; } = 80f;
 
@@ -55,43 +62,62 @@ public sealed partial class VehicleBase
 	[Property, Group( "Steering" ), Range( 0.1f, 20 )]
 	public float SteerSpeed { get; set; } = 6f;
 
-	/// <summary>How many of the (front-of-list) wheel anchors steer.
-	/// Convention: anchors are listed front-to-rear.</summary>
+	/// <summary>How aggressively the body yaws per second per degree of steer
+	/// angle, at full steering authority.</summary>
+	[Property, Group( "Steering" ), Range( 0.1f, 5f )]
+	public float YawRateScale { get; set; } = 3.0f;
+
+	/// <summary>Speed (km/h) at which the car reaches full steering authority.
+	/// Below this, yaw ramps up from zero so a crawling car doesn't pirouette;
+	/// at/above it you get the full turn rate. Keep low (~30) — referencing top
+	/// speed instead makes turning feel sluggish at normal driving speeds.</summary>
+	[Property, Group( "Steering" ), Range( 5, 80 )]
+	public float FullSteerSpeedKmh { get; set; } = 30f;
+
 	[Property, Group( "Steering" ), Range( 0, 8 )]
 	public int FrontWheelCount { get; set; } = 2;
 
 	// ── Engine ────────────────────────────────────────────────────────
-	/// <summary>Engine force in Newtons (continuous, integrated over time).
-	/// 15000 N on a 1400 kg car gives ~10 m/s² (≈0-100 km/h in 2.8s).</summary>
-	[Property, Group( "Engine" ), Range( 500, 100000 )]
+	[Property, Group( "Engine" ), Range( 500, 200000 )]
 	public float MaxEngineForce { get; set; } = 15000f;
 
-	/// <summary>Linear velocity damping per second (simple arcade air drag).
-	/// 0.5 = velocity halves every ~1.4 sec; 1.0 = halves every 0.7 sec.</summary>
+	/// <summary>Linear velocity damping per second on horizontal motion.</summary>
 	[Property, Group( "Engine" ), Range( 0, 5f )]
-	public float AirDrag { get; set; } = 0.5f;
+	public float AirDrag { get; set; } = 0.15f;
 
-	/// <summary>Downforce when grounded — keeps car planted at speed.
-	/// Force in Newtons; scaled by speed factor.</summary>
 	[Property, Group( "Engine" ), Range( 0, 50000 )]
 	public float Downforce { get; set; } = 5000f;
 
-	// (DebugLog property + tick log now live in VehicleBase.Debug.cs)
+	/// <summary>Hard ceiling on forward acceleration (m/s²). This is the
+	/// perceived-mass knob: the kinematic solver applies 100% of engine force
+	/// (Source 2 no longer eats it), so without this the car gains ~40 m/s²
+	/// and feels weightless. ~6 m/s² ≈ a brisk sports car (0–100 km/h in ~4.6s);
+	/// lower = heavier / slower pickup.</summary>
+	[Property, Group( "Engine" ), Range( 1, 30 )]
+	public float MaxForwardAccelMs2 { get; set; } = 6f;
 
 	// ── Internal per-wheel state ──────────────────────────────────────
 	private class WheelState
 	{
 		public bool IsGrounded;
 		public SceneTraceResult Center;
-		public SceneTraceResult Left;
-		public SceneTraceResult Right;
 		public float Compression;
 		public float CompressionPrevious;
 	}
 
-	private WheelState[] _wheels;
-	private bool[] _wheelSkidding;
-	private float _currentSteerAngle;
+	WheelState[] _wheels;
+	bool[] _wheelSkidding;
+	float _currentSteerAngle;
+	bool _kinematicReady;
+
+	/// <summary>Our authoritative velocity in inches/sec (sandbox units).
+	/// Body.Velocity is a mirror updated at end of each tick for debug visibility,
+	/// but we don't trust it for our own math.</summary>
+	Vector3 _vel;
+
+	/// <summary>Public accessor so other partials (Damage.cs, Powertrain.cs) can
+	/// read our velocity without going through Body.Velocity (which lags by a tick).</summary>
+	public Vector3 KinematicVelocity => _vel;
 
 	void EnsureWheelStates()
 	{
@@ -105,98 +131,233 @@ public sealed partial class VehicleBase
 
 	bool IsFrontWheel( int i ) => i < FrontWheelCount;
 
-	/// <summary>Forward speed in m/s. s&amp;box uses inches; convert via 0.0254.</summary>
+	/// <summary>Mass in kg for our manual F=ma integration. Body.Mass reads 0
+	/// once MotionEnabled=false (a kinematic body has no dynamic mass), which
+	/// would make every force/Mass term divide by zero → Infinity → NaN. We
+	/// own the integration now, so we own the mass too.</summary>
+	float VehicleMass => (Config != null && Config.MassKg > 0f) ? Config.MassKg : 1000f;
+
+	/// <summary>Forward speed in m/s (s&amp;box uses inches; convert via 0.0254).</summary>
 	float ForwardSpeedMs()
 	{
 		var fwd = WorldRotation.Forward;
-		var vProj = Vector3.Dot( Body.Velocity, fwd );
+		var vProj = Vector3.Dot( _vel, fwd );
 		return vProj * 0.0254f;
+	}
+
+	void SetupKinematicIfNeeded()
+	{
+		if ( _kinematicReady ) return;
+		if ( Body == null ) return;
+		// Take movement off Source 2's hands. Body keeps its collider for
+		// detection, but no physics integration → no contact damping.
+		try { Body.MotionEnabled = false; } catch { /* property may differ in older sbox versions */ }
+		_vel = Vector3.Zero;
+		_kinematicReady = true;
 	}
 
 	void SimulateWheels()
 	{
 		if ( Body == null || WheelAnchors == null || WheelAnchors.Count == 0 ) return;
 		EnsureWheelStates();
+		SetupKinematicIfNeeded();
 
 		var dt = Time.Delta;
 		if ( dt <= 0f ) return;
-		var wsDown = WorldRotation * Vector3.Down;
 
-		// Powertrain ticks first so CurrentGear/EngineRpm are fresh for engine force below.
+		// Powertrain ticks first so CurrentGear/EngineRpm reflect this step.
 		TickPowertrain( dt );
 
-		// Smoothly approach steering target. Uses tune-modulated max angle.
+		// Smoothly approach steering target.
 		var targetSteer = SteerInput * EffectiveSteerAngleMax;
 		_currentSteerAngle = MathX.Lerp( _currentSteerAngle, targetSteer, MathX.Clamp( SteerSpeed * dt, 0f, 1f ) );
 
-		// Engine FORCE in Newtons. Throttle × tune-modulated power × current-gear multiplier.
+		// ── Compute engine force in Newtons ──────────────────────────
 		float engineForceMag = 0f;
-		if ( IsEngineRunning && MathF.Abs( ThrottleInput ) > 0.05f )
+		if ( CanStartEngine && MathF.Abs( ThrottleInput ) > 0.05f )
 		{
 			var maxSpeedMs = (Config?.MaxSpeedKmh ?? 140f) / 3.6f;
 			var currentSpeedMs = ForwardSpeedMs();
-			// Forward throttle can't push past +max; reverse can't go past -max/2.
-			var atMaxFwd = ThrottleInput > 0 && currentSpeedMs >= maxSpeedMs;
-			var atMaxRev = ThrottleInput < 0 && currentSpeedMs <= -maxSpeedMs * 0.5f;
-			if ( !atMaxFwd && !atMaxRev )
-				engineForceMag = ThrottleInput * EffectiveEnginePower * GearTorqueMultiplier;
+			// Smooth force taper toward top speed (1 - ratio²) instead of a
+			// hard cutoff: acceleration fades as we near max, so the car
+			// asymptotes to top speed with weight rather than snapping there.
+			var targetMax = ThrottleInput > 0 ? maxSpeedMs : maxSpeedMs * 0.5f;
+			var ratio = MathX.Clamp( MathF.Abs( currentSpeedMs ) / targetMax, 0f, 1f );
+			// Pushing against current motion (reversals) gets full force.
+			var sameDir = MathF.Sign( currentSpeedMs ) == MathF.Sign( ThrottleInput );
+			var taper = sameDir ? (1f - ratio * ratio) : 1f;
+			engineForceMag = ThrottleInput * EffectiveEnginePower * GearTorqueMultiplier * taper;
 		}
 
-		// Per-wheel share is unused now (engine applied once outside loop), kept for the log.
-		var enginePerWheel = engineForceMag / WheelAnchors.Count;
+		// ── Gravity (manual since Source 2 isn't integrating us) ─────
+		const float GRAVITY_INCHES_PER_S2 = 9.81f / 0.0254f; // ≈ 386 inches/s²
+		_vel.z -= GRAVITY_INCHES_PER_S2 * dt;
 
+		// ── Wheel raycasts + suspension ──────────────────────────────
+		var wsDown = WorldRotation * Vector3.Down;
 		int groundedCount = 0;
+		float totalSuspensionForce = 0f;
 		for ( int i = 0; i < WheelAnchors.Count; i++ )
 		{
 			var anchor = WheelAnchors[i];
 			if ( anchor?.IsValid() != true ) continue;
-			ProcessWheel( i, anchor, wsDown, dt, enginePerWheel );
+			ProcessWheelKinematic( i, anchor, wsDown, dt, ref totalSuspensionForce );
 			if ( _wheels[i].IsGrounded ) groundedCount++;
 		}
 
-		// ── Engine: single direct velocity write after all wheels processed ──
-		// Velocity write goes through s&box's contact-clamping where ApplyForceAt does not.
-		if ( groundedCount > 0 && IsEngineRunning && !BrakeInput && MathF.Abs( engineForceMag ) > 0.01f )
+		// Sum of per-wheel suspension forces → single upward velocity change.
+		// Force is in Newtons. Δv = F·dt / m, then convert m/s → inches/sec.
+		if ( groundedCount > 0 )
 		{
-			// F = ma → Δv = F·dt / m  (continuous force integrated over one fixed step)
-			var deltaVms = engineForceMag * dt / Body.Mass;
-			var fwd = WorldRotation.Forward;
-			Body.Velocity += fwd * (deltaVms / 0.0254f);
+			var suspensionDvMs = totalSuspensionForce * dt / VehicleMass;
+			_vel.z += suspensionDvMs / 0.0254f;
 		}
 
-		// ── Engine braking (when coasting in gear, engine drags car back) ──
+		// ── Engine drive (forward, only when grounded + engine running) ──
+		if ( groundedCount > 0 && IsEngineRunning && !BrakeInput && MathF.Abs( engineForceMag ) > 0.01f )
+		{
+			var fwd = WorldRotation.Forward;
+			var deltaVms = engineForceMag * dt / VehicleMass;
+			// Cap longitudinal acceleration — the kinematic solver applies the
+			// full engine force (Source 2 no longer absorbs it), so without
+			// this the car gains speed instantly and feels weightless.
+			var maxDvMs = MaxForwardAccelMs2 * dt;
+			deltaVms = MathX.Clamp( deltaVms, -maxDvMs, maxDvMs );
+			_vel += fwd * (deltaVms / 0.0254f);
+		}
+
+		// ── Engine braking when coasting in gear ─────────────────────
 		if ( groundedCount > 0 && IsEngineRunning && CurrentGear != 0
 			&& MathF.Abs( ThrottleInput ) < 0.05f && EngineBrakingForce > 0f )
 		{
-			var fwdSpeed = ForwardSpeedMs();
-			if ( MathF.Abs( fwdSpeed ) > 0.5f )
+			var fwdSpeedMs = ForwardSpeedMs();
+			if ( MathF.Abs( fwdSpeedMs ) > 0.5f )
 			{
 				var fwd = WorldRotation.Forward;
-				var brakeDv = -MathF.Sign( fwdSpeed ) * EngineBrakingForce * dt / Body.Mass;
-				Body.Velocity += fwd * (brakeDv / 0.0254f);
+				var brakeDvMs = -MathF.Sign( fwdSpeedMs ) * EngineBrakingForce * dt / VehicleMass;
+				_vel += fwd * (brakeDvMs / 0.0254f);
 			}
 		}
 
-		// ── Air drag (linear damping — simple arcade) ──
+		// ── Active brake (right-click / handbrake) ───────────────────
+		if ( BrakeInput || HandbrakeInput )
+		{
+			var fwd = WorldRotation.Forward;
+			var fwdSpeed = Vector3.Dot( _vel, fwd );
+			if ( MathF.Abs( fwdSpeed ) > 1f )
+			{
+				var brakeMag = EffectiveBrake * VehicleMass * (Config?.BrakeStrength ?? 1f);
+				if ( HandbrakeInput ) brakeMag *= 0.8f;
+				var brakeDvMs = -MathF.Sign( fwdSpeed ) * brakeMag * dt / VehicleMass;
+				var brakeDv = brakeDvMs / 0.0254f;
+				// Don't overshoot zero
+				if ( MathF.Abs( brakeDv ) > MathF.Abs( fwdSpeed ) ) brakeDv = -fwdSpeed;
+				_vel += fwd * brakeDv;
+			}
+		}
+
+		// ── Lateral grip — damp the body's sideways velocity ─────────
+		// Per-wheel grip is averaged via EffectiveWheelGrip but applied at
+		// body level (we don't have angular dynamics here, so per-wheel
+		// torque doesn't apply). Strength scales with config grip + tune.
+		if ( groundedCount > 0 )
+		{
+			var right = WorldRotation.Right;
+			var lat = Vector3.Dot( _vel, right );
+			if ( MathF.Abs( lat ) > 0.01f )
+			{
+				// Average effective grip across grounded wheels
+				float gripAvg = 0f;
+				int g = 0;
+				for ( int i = 0; i < _wheels.Length; i++ )
+				{
+					if ( !_wheels[i].IsGrounded ) continue;
+					gripAvg += EffectiveWheelGrip( i );
+					g++;
+				}
+				if ( g > 0 ) gripAvg /= g;
+				var gripFactor = gripAvg * (Config?.Grip ?? 1f);
+				var damp = MathX.Clamp( gripFactor * 8f * dt, 0f, 1f );
+				_vel -= right * lat * damp;
+			}
+
+			// Skid event detection (uniform across grounded wheels in this model)
+			var lateralMag = MathF.Abs( lat );
+			var nowSkidding = lateralMag > SkidLateralThreshold;
+			for ( int i = 0; i < _wheelSkidding.Length; i++ )
+			{
+				if ( !_wheels[i].IsGrounded )
+				{
+					if ( _wheelSkidding[i] )
+					{
+						_wheelSkidding[i] = false;
+						VehicleEvents.RaiseWheelSkidStopped( this, i );
+					}
+					continue;
+				}
+				if ( nowSkidding && !_wheelSkidding[i] )
+				{
+					_wheelSkidding[i] = true;
+					VehicleEvents.RaiseWheelSkidStarted( this, i );
+				}
+				else if ( !nowSkidding && _wheelSkidding[i] )
+				{
+					_wheelSkidding[i] = false;
+					VehicleEvents.RaiseWheelSkidStopped( this, i );
+				}
+			}
+		}
+
+		// ── Air drag — damp horizontal motion only (gravity handles vertical) ──
 		if ( AirDrag > 0f )
 		{
 			var dampFactor = MathF.Max( 0f, 1f - AirDrag * dt );
-			Body.Velocity = Body.Velocity * dampFactor;
+			var horiz = new Vector3( _vel.x, _vel.y, 0 ) * dampFactor;
+			_vel = new Vector3( horiz.x, horiz.y, _vel.z );
 		}
 
-		// ── Downforce (keeps car planted at speed; tune-modulated) ──
+		// ── Downforce when grounded — sticks car to floor at speed ───
 		if ( groundedCount > 0 && EffectiveDownforce > 0f )
 		{
 			var speedKmh = MathF.Abs( ForwardSpeedMs() * 3.6f );
 			var maxKmh = Config?.MaxSpeedKmh ?? 140f;
 			var speedFactor = MathX.Clamp( speedKmh / maxKmh, 0f, 1f );
-			Body.ApplyForce( WorldRotation * Vector3.Down * EffectiveDownforce * speedFactor );
+			var downForceDvMs = EffectiveDownforce * speedFactor * dt / VehicleMass;
+			_vel.z -= downForceDvMs / 0.0254f;
 		}
+
+		// ── Steering: rotate the body around its up axis ─────────────
+		// Speed-scaled so stationary cars don't spin in place; sign-scaled
+		// so reverse driving inverts steering (like a real car backing up).
+		// Yaw is NEGATED: SteerInput is +1 for D/right, but s&box
+		// Rotation.FromYaw(+) rotates CCW (left) in its X-fwd/Y-left/Z-up
+		// space, so a right input needs a negative yaw delta.
+		if ( groundedCount > 0 && MathF.Abs( _currentSteerAngle ) > 0.1f )
+		{
+			var fwdSpeedMs = ForwardSpeedMs();
+			if ( MathF.Abs( fwdSpeedMs ) > 0.5f )
+			{
+				var fullSteerMs = MathF.Max( 1f, FullSteerSpeedKmh / 3.6f );
+				var speedFactor = MathX.Clamp( MathF.Abs( fwdSpeedMs ) / fullSteerMs, 0f, 1f );
+				var dirSign = MathF.Sign( fwdSpeedMs );
+				var yawRate = -_currentSteerAngle * speedFactor * dirSign * YawRateScale;
+				WorldRotation *= Rotation.FromYaw( yawRate * dt );
+			}
+		}
+
+		// ── The actual move — kinematic integration step ─────────────
+		// This is where the cap-bypass happens: we set the position directly
+		// rather than letting Source 2's physics integrate Body.Velocity.
+		WorldPosition += _vel * dt;
+
+		// Mirror velocity for consumers that read Body.Velocity (debug log,
+		// Damage.cs speedKmh, future code).
+		try { Body.Velocity = _vel; } catch { }
 
 		DebugTick( dt, groundedCount, engineForceMag );
 	}
 
-	void ProcessWheel( int i, GameObject anchor, Vector3 wsDown, float dt, float engineForcePerWheel )
+	void ProcessWheelKinematic( int i, GameObject anchor, Vector3 wsDown, float dt, ref float totalSuspensionForce )
 	{
 		var wheel = _wheels[i];
 		wheel.IsGrounded = false;
@@ -204,32 +365,14 @@ public sealed partial class VehicleBase
 		var origin = anchor.WorldPosition;
 		var traceLength = SuspensionLengthRelaxed + WheelRadius;
 
-		// Wheel orientation (front wheels steer).
-		var steerYaw = IsFrontWheel( i ) ? _currentSteerAngle : 0f;
-		var wsWheelRot = WorldRotation * Rotation.FromYaw( steerYaw );
-		var wsWheelLeft = wsWheelRot * Vector3.Left;
-
-		// Triple trace.
-		wheel.Left = Scene.Trace
-			.Ray( origin + wsWheelLeft * WheelWidth, origin + wsWheelLeft * WheelWidth + wsDown * traceLength )
-			.IgnoreGameObject( GameObject )
-			.Run();
-		wheel.Right = Scene.Trace
-			.Ray( origin - wsWheelLeft * WheelWidth, origin - wsWheelLeft * WheelWidth + wsDown * traceLength )
-			.IgnoreGameObject( GameObject )
-			.Run();
+		// Single center raycast — kinematic mode is forgiving enough that
+		// the triple-trace from the force-based version isn't needed.
 		wheel.Center = Scene.Trace
 			.Ray( origin, origin + wsDown * traceLength )
 			.IgnoreGameObject( GameObject )
 			.Run();
 
-		// Just check whether the trace hit something. The normal-tilt check
-		// (matekdev's groundDot) was excluding the user's ground entirely.
-		var leftHit   = wheel.Left.Hit;
-		var rightHit  = wheel.Right.Hit;
-		var centerHit = wheel.Center.Hit;
-
-		if ( !centerHit )
+		if ( !wheel.Center.Hit )
 		{
 			wheel.CompressionPrevious = wheel.Compression;
 			wheel.Compression = MathX.Clamp( wheel.Compression - dt * 1.0f, 0f, 1f );
@@ -240,81 +383,12 @@ public sealed partial class VehicleBase
 		wheel.IsGrounded = true;
 		wheel.Compression = 1.0f - MathX.Clamp( suspensionLength / SuspensionLengthRelaxed, 0f, 1f );
 
-		// ── Suspension force (Hooke's law + damping; tune-modulated) ──
-		var springForce = wheel.Compression * -EffectiveSuspensionStiffness;
+		// Hooke's law + damping. Each wheel contributes Newtons; caller sums
+		// them and converts to a single body Z velocity change.
+		var springForce = wheel.Compression * EffectiveSuspensionStiffness;
 		var compressionVel = (wheel.Compression - wheel.CompressionPrevious) / dt;
 		wheel.CompressionPrevious = wheel.Compression;
-		var damperForce = -compressionVel * EffectiveSuspensionDamping;
-		var totalSuspension = (springForce + damperForce);
-		// Project onto contact normal so sloped ground works.
-		totalSuspension *= Vector3.Dot( wheel.Center.Normal, -wsDown );
-		Body.ApplyForceAt( wheel.Center.HitPosition, wsDown * totalSuspension );
-
-		// ── Friction & engine force in the contact plane ──
-		var wheelVelocity = Body.GetVelocityAtPoint( wheel.Center.HitPosition );
-
-		var contactUp = wheel.Center.Normal;
-		// Prefer side-trace-derived contact left for accurate slope handling;
-		// fall back to wheel-aligned left when side traces don't both hit.
-		Vector3 contactLeft;
-		if ( leftHit && rightHit )
-			contactLeft = (wheel.Left.HitPosition - wheel.Right.HitPosition).Normal;
-		else
-			contactLeft = (wsWheelRot * Vector3.Left).Normal;
-		var contactForward = Vector3.Cross( contactLeft, contactUp ).Normal;
-
-		// Sliding velocity in contact plane (lateral + a bit of longitudinal).
-		var lateralVel = Vector3.Dot( wheelVelocity, contactLeft ) * contactLeft;
-		var forwardVel = Vector3.Dot( wheelVelocity, contactForward ) * contactForward;
-		var slideVelocity = (lateralVel + forwardVel) * 0.5f;
-
-		// Skid detection — fire transition events for VFX/audio.
-		var lateralMag = lateralVel.Length;
-		var nowSkidding = lateralMag > SkidLateralThreshold;
-		if ( _wheelSkidding != null && i < _wheelSkidding.Length )
-		{
-			if ( nowSkidding && !_wheelSkidding[i] )
-			{
-				_wheelSkidding[i] = true;
-				VehicleEvents.RaiseWheelSkidStarted( this, i );
-			}
-			else if ( !nowSkidding && _wheelSkidding[i] )
-			{
-				_wheelSkidding[i] = false;
-				VehicleEvents.RaiseWheelSkidStopped( this, i );
-			}
-		}
-
-		// Force needed to fully arrest the slide for this wheel's share.
-		var slidingForce = (slideVelocity * Body.Mass / dt) / WheelAnchors.Count;
-
-		// EffectiveWheelGrip rolls in tune front/rear multipliers + tire wear factor.
-		var lateralFric = MathX.Clamp( EffectiveWheelGrip( i ) * (Config?.Grip ?? 1f), 0f, 2f );
-		var frictionForce = -slidingForce * lateralFric;
-
-		// Pull longitudinal component out so we can modify it (brake / rolling).
-		var longitudinalForce = Vector3.Dot( frictionForce, contactForward ) * contactForward;
-
-		if ( BrakeInput || HandbrakeInput )
-		{
-			var brakeMag = EffectiveBrake * Body.Mass * (Config?.BrakeStrength ?? 1f);
-			if ( HandbrakeInput ) brakeMag *= 0.8f;
-			var clampedMag = MathX.Clamp( brakeMag, 0f, longitudinalForce.Length );
-			var brakeForceVec = longitudinalForce.Normal * clampedMag;
-			longitudinalForce -= brakeForceVec;
-		}
-		else if ( MathF.Abs( ThrottleInput ) < 0.05f )
-		{
-			// Coasting: rolling resistance reduces forward retention so the car slows.
-			var rollingK = 1.0f - MathX.Clamp( RollingFriction, 0f, 1f );
-			longitudinalForce *= rollingK;
-		}
-
-		// Final friction = full friction MINUS the (modified) longitudinal.
-		// Net effect: braking adds opposing force; rolling reduces forward friction so car coasts.
-		frictionForce -= longitudinalForce;
-		Body.ApplyForceAt( wheel.Center.HitPosition, frictionForce );
-
-		// (Engine force applied OUTSIDE the per-wheel loop — see SimulateWheels.)
+		var damperForce = compressionVel * EffectiveSuspensionDamping;
+		totalSuspensionForce += springForce + damperForce;
 	}
 }

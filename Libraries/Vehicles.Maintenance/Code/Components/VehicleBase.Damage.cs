@@ -15,7 +15,10 @@ public sealed partial class VehicleBase : Component.ICollisionListener
 	{
 		if ( Config == null ) return;
 
-		var speedKmh = Body.Velocity.Length * 0.036f;
+		// inches/sec → km/h is ×0.0254 (→m/s) ×3.6 (→km/h) = ×0.09144.
+		// (Was ×0.036 — a meters-based assumption; wrong now that velocity is
+		// consistently in sandbox inch units via the kinematic controller.)
+		var speedKmh = Body.Velocity.Length * 0.09144f;
 		var engineRunning = IsEngineRunning;
 
 		// Fuel burn — only when throttle is engaged (idle consumption ignored for v1)

@@ -44,6 +44,12 @@ public sealed partial class VehicleBase : Component
 		BatteryCharge = BatteryMaxCharge;
 		OilLevel = OilMaxLevel;
 		EnsureTireWearList();
+
+		// Kinematic mode: take movement off Source 2's hands so its contact
+		// damping never caps our velocity. We integrate manually in
+		// VehicleBase.Wheels.cs (SetupKinematicIfNeeded is a lazy fallback
+		// for the networked-proxy / hotload case where OnAwake didn't run).
+		SetupKinematicIfNeeded();
 	}
 
 	protected override void OnStart()
