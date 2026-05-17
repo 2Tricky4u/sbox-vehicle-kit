@@ -26,6 +26,11 @@ public sealed class SeatInteractor : Component
 	[Property, Group( "Interaction" ), Range( 50, 500 )]
 	public float UseRange { get; set; } = 200f;
 
+	/// <summary>Logs each step of the E-press flow so you can see exactly
+	/// where seat entry fails. On by default until the flow is verified.</summary>
+	[Property, Group( "Interaction" )]
+	public bool DebugLog { get; set; } = true;
+
 	[Property, Group( "Camera" )]
 	public bool ControlCamera { get; set; } = true;
 
@@ -52,6 +57,18 @@ public sealed class SeatInteractor : Component
 			?? Scene.GetAllComponents<PlayerController>().FirstOrDefault();
 	}
 
+	protected override void OnStart()
+	{
+		var onPlayerGo = GetComponent<PlayerController>() is not null;
+		var camCount = Scene.GetAllComponents<CameraComponent>().Count();
+		Dbg( $"ready. Player={(Player is null ? "NULL (no PlayerController found!)" : Player.GameObject.Name)} · " +
+			$"on-player-GO={onPlayerGo} · cameras={camCount} · use-key=press E (action \"use\")" );
+		if ( Player is null )
+			Log.Warning( "[SeatInteractor] No PlayerController in scene — add an s&box Player object and put this on it." );
+		if ( !onPlayerGo )
+			Log.Warning( "[SeatInteractor] Not on the same GameObject as a PlayerController — freeze/restore on enter/exit won't target the player correctly." );
+	}
+
 	protected override void OnUpdate()
 	{
 		// Seat may vanish under us (vehicle destroyed / kicked elsewhere).
@@ -63,39 +80,50 @@ public sealed class SeatInteractor : Component
 
 		if ( Input.Pressed( "use" ) )
 		{
+			Dbg( $"'use' pressed (seated={_seat is not null})" );
 			if ( _seat is not null ) ExitSeat();
-			else TryEnterLookedAtSeat();
+			else TryEnterNearestSeat();
 		}
 
 		if ( ControlCamera && _seat is not null && _seat.IsDriverSeat )
 			DriveChaseCamera( _seat.Vehicle );
 	}
 
-	void TryEnterLookedAtSeat()
+	// Proximity-based, NOT aim-based. Camera aiming proved fragile (multiple
+	// cameras: editor_camera vs the PlayerController's; Scene.Camera grabbed
+	// the wrong one and rays missed). For a dev harness "press E near the car"
+	// is robust in any camera mode and needs no vehicle collider.
+	void TryEnterNearestSeat()
 	{
-		var cam = Scene.Camera ?? Scene.GetAllComponents<CameraComponent>().FirstOrDefault();
-		if ( cam is null ) return;
+		// Player position if we know it, else this component's position.
+		var origin = Player?.IsValid() == true ? Player.WorldPosition : WorldPosition;
 
-		var from = cam.WorldPosition;
-		var to = from + cam.WorldRotation.Forward * UseRange;
-		var tr = Scene.Trace.Ray( from, to ).IgnoreGameObject( GameObject ).Run();
-		if ( !tr.Hit || tr.GameObject is null ) return;
-
-		var vehicle = tr.GameObject.Components.GetInAncestorsOrSelf<VehicleBase>();
-		if ( vehicle is null ) return;
+		var allSeats = Scene.GetAllComponents<VehicleSeat>().ToList();
+		Dbg( $"{allSeats.Count} VehicleSeat(s) in scene; player at {origin}" );
+		if ( allSeats.Count == 0 )
+		{
+			Log.Warning( "[SeatInteractor] No VehicleSeat anywhere. Add a child GameObject with a VehicleSeat (tick IsDriverSeat) to the car." );
+			return;
+		}
 
 		VehicleSeat best = null;
 		float bestDist = float.MaxValue;
-		foreach ( var seat in vehicle.GetComponentsInChildren<VehicleSeat>() )
+		foreach ( var seat in allSeats )
 		{
-			if ( seat.IsOccupied ) continue;
-			var d = (seat.WorldPosition - tr.HitPosition).LengthSquared;
-			if ( d < bestDist ) { bestDist = d; best = seat; }
+			if ( seat?.IsValid() != true || seat.IsOccupied ) continue;
+			var dist = Vector3.DistanceBetween( seat.WorldPosition, origin );
+			if ( dist < bestDist ) { bestDist = dist; best = seat; }
 		}
 
 		if ( best is null )
 		{
-			Log.Info( "[SeatInteractor] No free seat on that vehicle." );
+			Log.Info( "[SeatInteractor] All seats are occupied." );
+			return;
+		}
+
+		if ( bestDist > UseRange )
+		{
+			Dbg( $"nearest free seat '{best.GameObject.Name}' is {bestDist:F0}u away (> UseRange {UseRange:F0}). Walk closer or raise UseRange." );
 			return;
 		}
 
@@ -103,8 +131,18 @@ public sealed class SeatInteractor : Component
 		{
 			_seat = best;
 			FreezePlayerInto( best );
-			Log.Info( $"[SeatInteractor] Entered {(best.IsDriverSeat ? "driver" : "passenger")} seat of {vehicle.Config?.DisplayName ?? vehicle.GameObject.Name}." );
+			var vn = best.Vehicle?.Config?.DisplayName ?? best.Vehicle?.GameObject.Name ?? "vehicle";
+			Log.Info( $"[SeatInteractor] Entered {(best.IsDriverSeat ? "driver" : "passenger")} seat of {vn} ({bestDist:F0}u)." );
 		}
+		else
+		{
+			Dbg( "VehicleSeat.TryEnter returned false (taken between check and enter?)" );
+		}
+	}
+
+	void Dbg( string msg )
+	{
+		if ( DebugLog ) Log.Info( $"[SeatInteractor] {msg}" );
 	}
 
 	void ExitSeat()

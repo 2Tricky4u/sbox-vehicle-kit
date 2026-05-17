@@ -85,6 +85,7 @@ public static class VehicleDevCommands
 		Log.Info( "  vh.flip                            — flip/recover nearest (zeroes velocity, levels rotation)" );
 		Log.Info( "  vh.debug                           — toggle DebugLog on nearest" );
 		Log.Info( "  vh.debugdraw [seconds]             — draw wheel rays + forward arrow + collider (0=stop)" );
+		Log.Info( "  vh.scene                           — dump GameObject tree + setup checklist (diagnose E/seat issues)" );
 		Log.Info( "  vh.heal                            — fully restore nearest (fuel, engine, body, tires)" );
 		Log.Info( "  vh.cheat                           — toggle owner-side LocalSimulation (solo testing aid)" );
 		Log.Info( "  vh.diag                            — open the DiagnosticPanel for nearest vehicle" );
@@ -364,6 +365,112 @@ public static class VehicleDevCommands
 		Log.Info( $"[vh] debugdraw on '{v.Config?.DisplayName ?? v.GameObject.Name}' for {seconds:F0}s. " +
 			"GREEN=forward (drive dir, root +X) · CYAN=wheel ray · YELLOW=anchor · RED=ground hit · ORANGE=wheel rest · WHITE=collider box" );
 	}
+
+	[ConCmd( "vh.scene" )]
+	public static void DumpScene()
+	{
+		var scene = ActiveScene;
+		if ( scene is null ) { Log.Warning( "[vh] No active scene." ); return; }
+
+		Log.Info( "[vh] ───────── SCENE TREE ─────────" );
+		int budget = 600;
+		var all = new System.Collections.Generic.List<GameObject>();
+		try { all.AddRange( scene.GetAllObjects( true ) ); } catch { }
+		try { all.AddRange( scene.GetAllObjects( false ) ); } catch { }
+		var roots = all.Where( o => o is not null && o.Parent is null ).Distinct().ToList();
+		if ( roots.Count > 0 )
+			foreach ( var root in roots ) DumpGo( root, 0, ref budget );
+		else // bool semantics differ in this build — flat fallback
+			foreach ( var o in all.Distinct() )
+				Log.Info( $"[vh] • {o.Name}{(o.Enabled ? "" : " (disabled)")}  parent={o.Parent?.Name ?? "<root>"}" );
+		if ( budget <= 0 ) Log.Info( "[vh]   …(tree truncated)" );
+
+		Log.Info( "[vh] ───────── SETUP CHECKLIST ─────────" );
+
+		var vehicles = scene.GetAllComponents<VehicleBase>().ToList();
+		var players = scene.GetAllComponents<PlayerController>().ToList();
+		var interactors = scene.GetAllComponents<SeatInteractor>().ToList();
+		var testDrivers = scene.GetAllComponents<TestDriverComponent>().ToList();
+		var cams = scene.GetAllComponents<CameraComponent>().ToList();
+		var screens = scene.GetAllComponents<ScreenPanel>().ToList();
+
+		Chk( cams.Count > 0, $"CameraComponent present ({cams.Count})", "NO camera — SeatInteractor can't raycast and you'll see nothing" );
+		Chk( players.Count > 0, $"PlayerController present ({players.Count})", "NO PlayerController — add an s&box Player object" );
+		Chk( interactors.Count > 0, $"SeatInteractor present ({interactors.Count})", "NO SeatInteractor — add it to the Player object" );
+
+		foreach ( var si in interactors )
+		{
+			var sameGo = si.GetComponent<PlayerController>() is not null;
+			Chk( sameGo, $"SeatInteractor on '{si.GameObject.Name}' is on a PlayerController GO",
+				$"SeatInteractor on '{si.GameObject.Name}' is NOT on the Player object — put it on the same GameObject as PlayerController" );
+		}
+
+		if ( testDrivers.Any( t => t.Enabled ) )
+			Log.Warning( "[vh] ✗ TestDriverComponent is still ENABLED — it force-sets HasDriver + hijacks the camera, conflicting with SeatInteractor. Disable/remove it." );
+
+		Chk( vehicles.Count > 0, $"VehicleBase present ({vehicles.Count})", "NO vehicle in scene" );
+
+		foreach ( var v in vehicles )
+		{
+			var nm = v.GameObject.Name;
+			Log.Info( $"[vh]   ── vehicle '{nm}' ──" );
+			Chk( v.Config is not null, $"  Config = {v.Config?.ResourceName ?? "?"}", $"  '{nm}' has NO Config assigned — component disables itself in OnAwake" );
+
+			var anchors = v.WheelAnchors;
+			int valid = anchors?.Count( a => a?.IsValid() == true ) ?? 0;
+			Chk( valid >= 4, $"  WheelAnchors = {valid} valid", $"  '{nm}' has {valid} valid WheelAnchors (need ≥4 placed at the wheels)" );
+
+			var colliders = v.GetComponentsInChildren<Collider>().ToList();
+			Chk( colliders.Count > 0, $"  Collider(s): {string.Join( ", ", colliders.Select( c => c.GetType().Name ) )}",
+				$"  '{nm}' has NO collider of any kind" );
+			foreach ( var col in colliders.Where( c => c.IsTrigger ) )
+				Log.Warning( $"[vh] ✗ '{nm}' {col.GetType().Name} IsTrigger=TRUE — Scene.Trace ignores triggers; vh.debugdraw rays will MISS. Set IsTrigger=false for a solid car." );
+
+			// Rigidbody hygiene: the VehicleBase root must own exactly ONE
+			// Rigidbody and the kinematic controller drives it (MotionEnabled
+			// false). Extra Rigidbodies / a Prop visual = competing physics.
+			var rbs = v.GetComponents<Rigidbody>().ToList();
+			Chk( rbs.Count == 1, $"  Rigidbody ×1 on root", $"  '{nm}' has {rbs.Count} Rigidbody on the root — there must be exactly ONE (delete duplicates)" );
+			if ( rbs.Count > 0 )
+			{
+				bool me = true; try { me = rbs[0].MotionEnabled; } catch { }
+				Chk( me == false, $"  Rigidbody.MotionEnabled=False (kinematic OK)", $"  '{nm}' Rigidbody.MotionEnabled={me} — kinematic controller expects FALSE (set by OnAwake; if True the setup ran wrong)" );
+			}
+			var prop = v.GetComponentInChildren<Prop>();
+			if ( prop is not null )
+				Log.Warning( $"[vh] ✗ '{nm}' has a Prop ('{prop.GameObject.Name}') — a Prop bundles its OWN Rigidbody and self-simulates, fighting the kinematic VehicleBase. Remove the Prop component (and the child Rigidbody it added). KEEP the ModelRenderer (visual) AND the ModelCollider — a ModelCollider with no Rigidbody of its own binds to the root Rigidbody and gives accurate car-shaped collision. Do NOT replace it with a BoxCollider." );
+			var childRbs = v.GetComponentsInChildren<Rigidbody>().Count() - rbs.Count;
+			if ( childRbs > 0 )
+				Log.Warning( $"[vh] ✗ '{nm}' has {childRbs} Rigidbody on CHILD object(s) (e.g. the model/Prop) — a collider only binds to the vehicle's body if it has NO Rigidbody above it on the child. Remove the child Rigidbody; keep the ModelCollider." );
+
+			var seats = v.GetComponentsInChildren<VehicleSeat>().ToList();
+			Chk( seats.Count > 0, $"  VehicleSeat × {seats.Count}", $"  '{nm}' has NO VehicleSeat — add a child GameObject with VehicleSeat (tick IsDriverSeat). THIS is why E does nothing." );
+			foreach ( var s in seats )
+				Log.Info( $"[vh]     seat '{s.GameObject.Name}': IsDriverSeat={s.IsDriverSeat} occupied={s.IsOccupied} vehicle={(s.Vehicle == v ? "linked" : "MISLINKED")}" );
+			if ( seats.Count > 0 && !seats.Any( s => s.IsDriverSeat ) )
+				Log.Warning( $"[vh] ✗ '{nm}' has seats but NONE has IsDriverSeat — you can sit but not drive." );
+		}
+
+		Chk( screens.Count > 0, $"ScreenPanel present ({screens.Count}) — needed for vh.diag", "no ScreenPanel (only matters for the DiagnosticPanel UI)" );
+		Chk( VehicleHost.Current is not null, $"VehicleHost registered ({VehicleHost.Current?.GetType().Name})", "VehicleHost.Current is NULL — bootstrap didn't run" );
+		Log.Info( "[vh] ─────────────────────────────────" );
+	}
+
+	static void DumpGo( GameObject go, int depth, ref int budget )
+	{
+		if ( go is null || budget-- <= 0 ) return;
+		var pad = new string( ' ', depth * 2 );
+		string comps;
+		try { comps = string.Join( ", ", go.Components.GetAll().Select( c => c.GetType().Name ) ); }
+		catch { comps = "?"; }
+		var dis = go.Enabled ? "" : " (disabled)";
+		Log.Info( $"[vh] {pad}• {go.Name}{dis}  [{comps}]" );
+		foreach ( var child in go.Children )
+			DumpGo( child, depth + 1, ref budget );
+	}
+
+	static void Chk( bool ok, string okMsg, string failMsg )
+		=> Log.Info( ok ? $"[vh] ✓ {okMsg}" : $"[vh] ✗ {failMsg}" );
 
 	[ConCmd( "vh.cheat" )]
 	public static void ToggleLocalSim()
