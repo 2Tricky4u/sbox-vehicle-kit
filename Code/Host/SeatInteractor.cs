@@ -44,6 +44,14 @@ public sealed class SeatInteractor : Component
 	[Property, Group( "Camera" ), Range( 0, 200 )]
 	public float CameraLookHeight { get; set; } = 50f;
 
+	// First-person (cockpit) offsets from the driver-seat anchor. The
+	// 3rd/1st choice itself is the global VehicleCamera.Mode, not these.
+	[Property, Group( "Camera" ), Range( 0, 80 )]
+	public float FirstPersonEyeHeight { get; set; } = 22f;
+
+	[Property, Group( "Camera" ), Range( -30, 60 )]
+	public float FirstPersonForward { get; set; } = 6f;
+
 	/// <summary>The s&box player controller on this GameObject. Auto-found.</summary>
 	[Property] public PlayerController Player { get; set; }
 
@@ -87,7 +95,12 @@ public sealed class SeatInteractor : Component
 		}
 
 		if ( ControlCamera && _seat is not null && _seat.IsDriverSeat )
-			DriveChaseCamera( _seat.Vehicle );
+		{
+			if ( VehicleCamera.Mode == VehicleCameraMode.FirstPerson )
+				DriveFirstPersonCamera( _seat );
+			else
+				DriveChaseCamera( _seat.Vehicle );
+		}
 	}
 
 	// Proximity-based, NOT aim-based. Camera aiming proved fragile (multiple
@@ -228,6 +241,22 @@ public sealed class SeatInteractor : Component
 
 		cam.WorldPosition = camPos;
 		cam.WorldRotation = Rotation.LookAt( lookAt - camPos );
+	}
+
+	// Cockpit view: camera at the driver-seat anchor, looking where the car
+	// faces. Offsets are FirstPersonEyeHeight / FirstPersonForward.
+	void DriveFirstPersonCamera( VehicleSeat seat )
+	{
+		var vehicle = seat?.Vehicle;
+		if ( vehicle?.IsValid() != true ) return;
+		var cam = Scene.Camera ?? Scene.GetAllComponents<CameraComponent>().FirstOrDefault();
+		if ( cam is null ) return;
+
+		var rot = vehicle.WorldRotation;
+		cam.WorldPosition = seat.WorldPosition
+			+ Vector3.Up * FirstPersonEyeHeight
+			+ rot.Forward * FirstPersonForward;
+		cam.WorldRotation = rot;
 	}
 
 	protected override void OnDestroy()

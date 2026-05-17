@@ -318,7 +318,6 @@
           "OnComponentStart": null,
           "OnComponentUpdate": null,
           "OverrideMassCenter": false,
-          "PreciseContacts": false,
           "RigidbodyFlags": 0,
           "SleepThreshold": 2,
           "StartAsleep": false
@@ -426,7 +425,6 @@
           "OnComponentStart": null,
           "OnComponentUpdate": null,
           "OverrideMassCenter": false,
-          "PreciseContacts": false,
           "RigidbodyFlags": 0,
           "SleepThreshold": 2,
           "StartAsleep": false
@@ -534,7 +532,6 @@
           "OnComponentStart": null,
           "OnComponentUpdate": null,
           "OverrideMassCenter": false,
-          "PreciseContacts": false,
           "RigidbodyFlags": 0,
           "SleepThreshold": 2,
           "StartAsleep": false
@@ -763,7 +760,6 @@
           "OnComponentStart": null,
           "OnComponentUpdate": null,
           "OverrideMassCenter": false,
-          "PreciseContacts": false,
           "RigidbodyFlags": 0,
           "SleepThreshold": 2,
           "StartAsleep": false
@@ -1114,7 +1110,6 @@
           "OnComponentStart": null,
           "OnComponentUpdate": null,
           "OverrideMassCenter": false,
-          "PreciseContacts": false,
           "RigidbodyFlags": 0,
           "SleepThreshold": 2,
           "StartAsleep": false
@@ -1424,7 +1419,6 @@
           "OnComponentStart": null,
           "OnComponentUpdate": null,
           "OverrideMassCenter": true,
-          "PreciseContacts": true,
           "RigidbodyFlags": "DisableCollisionSounds",
           "SleepThreshold": 2,
           "StartAsleep": false
@@ -1510,6 +1504,8 @@
           "CameraLookHeight": 50,
           "ControlCamera": true,
           "DebugLog": true,
+          "FirstPersonEyeHeight": 22,
+          "FirstPersonForward": 6,
           "OnComponentDestroy": null,
           "OnComponentDisabled": null,
           "OnComponentEnabled": null,
@@ -1682,13 +1678,13 @@
       "CustomBounds": false
     },
     "GameObjectSystems": {
+      "Sandbox.MovieMaker.MovieRecorderSystem": {
+        "DisableClientRecording": false
+      },
       "Sandbox.Clutter.ClutterGridSystem": {
         "Storage": {
           "$blob": "2aba01e5-163f-4d18-9b19-bb2470d0861f"
         }
-      },
-      "Sandbox.MovieMaker.MovieRecorderSystem": {
-        "DisableClientRecording": false
       },
       "Sandbox.SelectionSetsSystem": {
         "Data": {

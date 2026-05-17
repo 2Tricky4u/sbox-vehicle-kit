@@ -90,6 +90,7 @@ public static class VehicleDevCommands
 		Log.Info( "  vh.cheat                           — toggle owner-side LocalSimulation (solo testing aid)" );
 		Log.Info( "  vh.diag                            — open the DiagnosticPanel for nearest vehicle" );
 		Log.Info( "  vh.hud                             — toggle the in-vehicle HUD on nearest vehicle" );
+		Log.Info( "  vh.cam [first|third]               — global driving camera (no arg = toggle)" );
 		Log.Info( "  vh.parts                           — list .partdef assets" );
 		Log.Info( "  vh.give <partIdent> [count]        — add parts to local mechanic's inventory" );
 		Log.Info( "  vh.mechanic                        — info on toggling mechanic job (stub host = always mechanic)" );
@@ -536,6 +537,20 @@ public static class VehicleDevCommands
 		if ( !TryRequireVehicle( out var v ) ) return;
 		VehicleHud.Show( v );
 		Log.Info( $"[vh] HUD shown for {v.Config?.DisplayName ?? v.GameObject.Name} (needs a ScreenPanel in scene)." );
+	}
+
+	[ConCmd( "vh.cam" )]
+	public static void SetCamera( string mode = null )
+	{
+		if ( string.IsNullOrWhiteSpace( mode ) )
+			VehicleCamera.Mode = VehicleCamera.Mode == VehicleCameraMode.ThirdPerson
+				? VehicleCameraMode.FirstPerson : VehicleCameraMode.ThirdPerson;
+		else if ( mode.StartsWith( "1" ) || mode.StartsWith( "f", System.StringComparison.OrdinalIgnoreCase ) )
+			VehicleCamera.Mode = VehicleCameraMode.FirstPerson;
+		else
+			VehicleCamera.Mode = VehicleCameraMode.ThirdPerson;
+
+		Log.Info( $"[vh] Driving camera → {VehicleCamera.Mode} (global). Set VehicleCamera.Mode in your gamemode bootstrap to make it the permanent default." );
 	}
 
 	[ConCmd( "vh.parts" )]
