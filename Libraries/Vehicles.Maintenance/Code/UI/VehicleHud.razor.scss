@@ -1,159 +1,335 @@
-.vehicle-hud {
+.racing-hud {
 	position: absolute;
-	bottom: 48px;
+	bottom: 32px;
 	left: 0px;
 	right: 0px;
 	justify-content: center;
 	align-items: flex-end;
 	pointer-events: none;
-	font-family: Roboto, sans-serif;
+	font-family: "Roboto Condensed", Roboto, sans-serif;
 	transition: opacity 0.25s ease;
 	opacity: 1;
 
-	&.hidden {
-		opacity: 0;
-	}
+	&.hidden { opacity: 0; }
 
-	.cluster {
+	.hud-wrap {
 		flex-direction: column;
-		gap: 10px;
-		padding: 18px 24px;
-		min-width: 460px;
-		background-color: rgba( 8, 12, 18, 0.78 );
-		border: 1px solid rgba( 120, 200, 255, 0.18 );
-		border-radius: 14px;
-		box-shadow: 0px 6px 28px rgba( 0, 0, 0, 0.55 );
+		align-items: center;
+		gap: 8px;
 	}
 
-	.topline {
+	// ── shift / rev lights ──────────────────────────────
+	.shift {
 		flex-direction: row;
-		align-items: center;
-		gap: 12px;
+		gap: 5px;
+		padding: 6px 12px;
+		background-color: rgba( 8, 10, 14, 0.7 );
+		border-radius: 8px;
 
-		.name {
-			font-size: 16px;
-			font-weight: 600;
-			color: rgba( 200, 230, 255, 0.9 );
-			letter-spacing: 2px;
-			flex-grow: 1;
+		.sl {
+			width: 16px;
+			height: 9px;
+			border-radius: 3px;
+			background-color: rgba( 255, 255, 255, 0.08 );
+			transition: background-color 0.05s linear;
 		}
-
-		.warns {
-			flex-direction: row;
-			gap: 6px;
-
-			.warn {
-				font-size: 12px;
-				font-weight: 700;
-				padding: 3px 9px;
-				border-radius: 6px;
-				color: white;
-				background-color: rgba( 200, 60, 60, 0.9 );
-				letter-spacing: 1px;
-			}
-			.warn.oil { background-color: rgba( 210, 130, 30, 0.92 ); }
-			.warn.bat { background-color: rgba( 200, 160, 40, 0.92 ); }
-			.warn.fuel { background-color: rgba( 210, 90, 40, 0.92 ); }
-			.warn.off { background-color: rgba( 90, 90, 90, 0.92 ); }
-		}
+		.sl.on.green  { background-color: rgba( 60, 230, 110, 1 ); box-shadow: 0px 0px 8px rgba( 60, 230, 110, 0.8 ); }
+		.sl.on.amber  { background-color: rgba( 255, 190, 40, 1 );  box-shadow: 0px 0px 8px rgba( 255, 190, 40, 0.8 ); }
+		.sl.on.red    { background-color: rgba( 255, 60, 60, 1 );   box-shadow: 0px 0px 10px rgba( 255, 60, 60, 0.9 ); }
 	}
 
-	.readout {
+	// ── circular gauge ──────────────────────────────────
+	.gauges {
 		flex-direction: row;
-		align-items: center;
-		justify-content: center;
-		gap: 28px;
+		align-items: flex-end;
+		gap: 18px;
+	}
 
-		.speed {
-			flex-direction: row;
-			align-items: flex-end;
-			gap: 8px;
+	.dial {
+		position: relative;
+		width: 260px;
+		height: 260px;
+		border-radius: 130px;
+		background-color: rgba( 10, 13, 18, 0.82 );
+		border: 2px solid rgba( 120, 200, 255, 0.22 );
+		box-shadow: 0px 8px 30px rgba( 0, 0, 0, 0.6 );
 
-			.num {
-				font-size: 76px;
+		.tick {
+			position: absolute;
+			width: 2px;
+			height: 12px;
+			margin-left: -1px;
+			margin-top: -6px;
+			background-color: rgba( 170, 200, 230, 0.45 );
+		}
+		.tick.major {
+			width: 4px;
+			height: 18px;
+			margin-left: -2px;
+			margin-top: -9px;
+			background-color: rgba( 210, 235, 255, 0.9 );
+		}
+
+		.tnum {
+			position: absolute;
+			width: 32px;
+			text-align: center;
+			font-size: 15px;
+			font-weight: 700;
+			color: rgba( 200, 225, 245, 0.85 );
+		}
+
+		// needle pivots around the gauge centre (0-size point at 130,130)
+		.needle-pivot {
+			position: absolute;
+			left: 130px;
+			top: 130px;
+			width: 0px;
+			height: 0px;
+			transition: transform 0.08s linear;
+		}
+		.needle {
+			position: absolute;
+			bottom: 0px;
+			left: -3px;
+			width: 6px;
+			height: 108px;
+			border-radius: 3px;
+			background-image: linear-gradient( to top, rgba( 255, 80, 60, 1 ), rgba( 255, 170, 60, 1 ) );
+			box-shadow: 0px 0px 10px rgba( 255, 90, 60, 0.7 );
+		}
+		.hub {
+			position: absolute;
+			left: 119px;
+			top: 119px;
+			width: 22px;
+			height: 22px;
+			border-radius: 11px;
+			background-color: rgba( 40, 50, 65, 1 );
+			border: 2px solid rgba( 150, 200, 240, 0.5 );
+		}
+
+		.centre {
+			position: absolute;
+			left: 0px;
+			top: 116px;
+			width: 260px;
+			flex-direction: column;
+			align-items: center;
+			gap: 2px;
+
+			.kmh {
+				font-size: 40px;
 				font-weight: 800;
 				color: white;
 				line-height: 0.9;
 			}
 			.unit {
-				font-size: 18px;
+				font-size: 12px;
 				font-weight: 600;
-				color: rgba( 150, 190, 220, 0.8 );
-				margin-bottom: 10px;
+				letter-spacing: 3px;
+				color: rgba( 150, 190, 220, 0.7 );
+			}
+			.gear {
+				margin-top: 3px;
+				width: 32px;
+				height: 32px;
+				border-radius: 8px;
+				justify-content: center;
+				align-items: center;
+				font-size: 20px;
+				font-weight: 800;
+				color: white;
+				background-color: rgba( 40, 110, 200, 0.9 );
+			}
+			.gear.rev { background-color: rgba( 200, 80, 60, 0.9 ); }
+			.gear.neutral { background-color: rgba( 90, 90, 100, 0.85 ); }
+		}
+
+	}
+
+	// ── automotive fuel gauge (right of speedo) ─────────
+	.fuelgauge {
+		position: relative;
+		width: 160px;
+		height: 132px;
+		background-color: rgba( 10, 13, 18, 0.82 );
+		border: 2px solid rgba( 120, 200, 255, 0.22 );
+		border-radius: 14px;
+		box-shadow: 0px 8px 30px rgba( 0, 0, 0, 0.6 );
+
+		// faint CSS-drawn gas-pump watermark, behind ticks/needle
+		.fuel-logo {
+			position: absolute;
+			left: 0px;
+			top: 0px;
+			width: 160px;
+			height: 132px;
+			opacity: 0.13;
+			transform: scale( 0.6 );
+
+			.pbody {
+				position: absolute;
+				left: 60px;
+				top: 34px;
+				width: 30px;
+				height: 50px;
+				border-radius: 5px;
+				background-color: rgba( 170, 215, 250, 1 );
+
+				.pscreen {
+					position: absolute;
+					left: 5px;
+					top: 6px;
+					width: 20px;
+					height: 11px;
+					border-radius: 2px;
+					background-color: rgba( 10, 13, 18, 1 );
+				}
+			}
+			.pbase {
+				position: absolute;
+				left: 55px;
+				top: 84px;
+				width: 40px;
+				height: 7px;
+				border-radius: 2px;
+				background-color: rgba( 170, 215, 250, 1 );
+			}
+			.phose {
+				position: absolute;
+				left: 86px;
+				top: 44px;
+				width: 12px;
+				height: 5px;
+				background-color: rgba( 170, 215, 250, 1 );
+			}
+			.pnozzle {
+				position: absolute;
+				left: 95px;
+				top: 44px;
+				width: 6px;
+				height: 22px;
+				border-radius: 2px;
+				background-color: rgba( 170, 215, 250, 1 );
 			}
 		}
 
-		.gear {
-			width: 64px;
-			height: 64px;
-			border-radius: 12px;
+		.ftick {
+			position: absolute;
+			width: 2px;
+			height: 9px;
+			margin-left: -1px;
+			margin-top: -4px;
+			background-color: rgba( 170, 200, 230, 0.5 );
+		}
+		.ftick.major {
+			width: 3px;
+			height: 13px;
+			margin-left: -1px;
+			margin-top: -6px;
+			background-color: rgba( 210, 235, 255, 0.9 );
+		}
+		.ftick.red {
+			background-color: rgba( 235, 70, 55, 1 );
+		}
+
+		.fend {
+			position: absolute;
+			width: 18px;
+			text-align: center;
+			font-size: 15px;
+			font-weight: 800;
+			color: rgba( 210, 235, 255, 0.9 );
+		}
+		.fend.e { color: rgba( 235, 90, 70, 1 ); }
+
+		.fneedle-pivot {
+			position: absolute;
+			left: 80px;
+			top: 96px;
+			width: 0px;
+			height: 0px;
+			transition: transform 0.2s ease;
+		}
+		.fneedle {
+			position: absolute;
+			bottom: 0px;
+			left: -2px;
+			width: 4px;
+			height: 52px;
+			border-radius: 2px;
+			background-image: linear-gradient( to top, rgba( 230, 235, 245, 1 ), rgba( 120, 200, 255, 1 ) );
+		}
+		.fneedle.low {
+			background-image: linear-gradient( to top, rgba( 235, 90, 60, 1 ), rgba( 255, 170, 90, 1 ) );
+		}
+		.fhub {
+			position: absolute;
+			left: 70px;
+			top: 86px;
+			width: 20px;
+			height: 20px;
+			border-radius: 10px;
+			background-color: rgba( 40, 50, 65, 1 );
+			border: 2px solid rgba( 150, 200, 240, 0.5 );
+		}
+
+		.fcap {
+			position: absolute;
+			left: 0px;
+			top: 100px;
+			width: 160px;
+			flex-direction: row;
 			justify-content: center;
 			align-items: center;
-			font-size: 34px;
-			font-weight: 800;
-			color: white;
-			background-color: rgba( 40, 110, 200, 0.85 );
-			border: 1px solid rgba( 140, 200, 255, 0.35 );
-		}
-		.gear.rev { background-color: rgba( 200, 80, 60, 0.85 ); }
-		.gear.neutral { background-color: rgba( 90, 90, 100, 0.8 ); }
-	}
+			gap: 6px;
 
-	.rpm {
-		flex-direction: column;
-		gap: 4px;
-
-		.track {
-			height: 10px;
-			background-color: rgba( 255, 255, 255, 0.08 );
-			border-radius: 5px;
-		}
-		.fill {
-			height: 10px;
-			border-radius: 5px;
-			background-color: rgba( 70, 200, 255, 0.95 );
-			transition: width 0.08s linear;
-		}
-		.fill.redline {
-			background-color: rgba( 255, 70, 70, 1 );
-		}
-		.rpmval {
-			align-self: flex-end;
-			font-size: 12px;
-			color: rgba( 160, 200, 230, 0.75 );
-			letter-spacing: 1px;
-		}
-	}
-
-	.bars {
-		flex-direction: row;
-		gap: 16px;
-
-		.bar {
-			flex-direction: row;
-			align-items: center;
-			gap: 8px;
-			flex-grow: 1;
-
-			.lbl {
-				font-size: 11px;
+			.ficon {
+				font-size: 12px;
 				font-weight: 700;
+				letter-spacing: 2px;
 				color: rgba( 150, 190, 220, 0.7 );
-				width: 34px;
 			}
-			.track {
-				flex-grow: 1;
-				height: 8px;
-				background-color: rgba( 255, 255, 255, 0.08 );
-				border-radius: 4px;
+			.fpct {
+				font-size: 18px;
+				font-weight: 800;
+				color: white;
 			}
-			.fill {
-				height: 8px;
-				border-radius: 4px;
-				transition: width 0.15s ease;
-			}
-			.fill.fuel { background-color: rgba( 90, 200, 120, 0.95 ); }
-			.fill.spd { background-color: rgba( 120, 180, 255, 0.9 ); }
+			.fpct.low { color: rgba( 255, 110, 80, 1 ); }
+		}
+	}
+
+	// ── dashboard tell-tales ────────────────────────────
+	.tells {
+		flex-direction: row;
+		align-items: center;
+		gap: 6px;
+		padding: 6px 10px;
+		background-color: rgba( 8, 10, 14, 0.7 );
+		border-radius: 8px;
+
+		.tell {
+			font-size: 12px;
+			font-weight: 700;
+			letter-spacing: 1px;
+			padding: 3px 9px;
+			border-radius: 5px;
+			color: rgba( 255, 255, 255, 0.18 );
+			background-color: rgba( 255, 255, 255, 0.05 );
+		}
+		.tell.on { color: white; }
+		.tell.eng.on  { background-color: rgba( 210, 70, 60, 0.95 ); }
+		.tell.oil.on  { background-color: rgba( 210, 130, 30, 0.95 ); }
+		.tell.bat.on  { background-color: rgba( 200, 160, 40, 0.95 ); }
+		.tell.tire.on { background-color: rgba( 210, 70, 60, 0.95 ); }
+		.tell.off.on  { background-color: rgba( 90, 90, 90, 0.95 ); }
+
+		.tell.name {
+			color: rgba( 200, 230, 255, 0.85 );
+			background-color: rgba( 0, 0, 0, 0 );
+			font-weight: 600;
+			letter-spacing: 2px;
 		}
 	}
 }

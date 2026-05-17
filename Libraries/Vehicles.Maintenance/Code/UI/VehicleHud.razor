@@ -4,52 +4,104 @@
 @using System.Linq
 @namespace Vehicles.Maintenance
 
-<root class="vehicle-hud @(Visible ? "" : "hidden")">
+<root class="racing-hud @(Visible ? "" : "hidden")">
 	@if ( Visible )
 	{
 		var v = Target;
-		var kmh = (int)MathF.Round( v.KinematicVelocity.Length * 0.09144f );
+		var kmh = (int)MathF.Round( MathF.Abs( v.KinematicVelocity.Length * 0.09144f ) );
+		var maxKmh = v.Config.MaxSpeedKmh > 0 ? (int)v.Config.MaxSpeedKmh : 140;
+		var spdFrac = MathX.Clamp( kmh / (float)maxKmh, 0f, 1f );
+		var needle = Sweep( spdFrac );
 		var rpmFrac = v.RedlineRpm > 1f ? MathX.Clamp( v.EngineRpm / v.RedlineRpm, 0f, 1f ) : 0f;
-		var redline = rpmFrac >= 0.92f;
-		var maxKmh = v.Config.MaxSpeedKmh > 0 ? v.Config.MaxSpeedKmh : 140;
+		var lit = (int)MathF.Round( rpmFrac * ShiftLights );
+		var step = TickStep( maxKmh );
 
-		<div class="cluster">
-			<div class="topline">
-				<span class="name">@v.Config.DisplayName</span>
-				<div class="warns">
-					@if ( v.FuelPct < 0.15f ) { <span class="warn fuel">FUEL</span> }
-					@if ( v.EngineHealthPct < 0.3f ) { <span class="warn eng">ENGINE</span> }
-					@if ( v.IsLowOil ) { <span class="warn oil">OIL</span> }
-					@if ( v.BatteryPct < 0.15f ) { <span class="warn bat">BATT</span> }
-					@if ( v.TirePunctureMask != 0 ) { <span class="warn tire">TIRE</span> }
-					@if ( !v.IsEngineRunning ) { <span class="warn off">ENGINE OFF</span> }
+		<div class="hud-wrap">
+
+			<!-- shift / rev lights -->
+			<div class="shift">
+				@for ( int i = 0; i < ShiftLights; i++ )
+				{
+					var on = i < lit;
+					<div class="sl @ShiftClass( i ) @(on ? "on" : "")"></div>
+				}
+			</div>
+
+			<div class="gauges">
+				<!-- speedometer -->
+				<div class="dial">
+					@for ( int s = 0; s <= maxKmh; s += step )
+					{
+						var a = Sweep( s / (float)maxKmh );
+						var major = (s % (step * 2) == 0);
+						<div class="tick @(major ? "major" : "")"
+							 style="left: @(PX( a, RTick ))px; top: @(PY( a, RTick ))px; transform: rotate(@(a)deg);"></div>
+					}
+					@for ( int s = 0; s <= maxKmh; s += step * 2 )
+					{
+						var a = Sweep( s / (float)maxKmh );
+						<span class="tnum" style="left: @(PX( a, RNum ) - 16)px; top: @(PY( a, RNum ) - 9)px;">@s</span>
+					}
+
+					<div class="hub"></div>
+
+					<div class="centre">
+						<span class="kmh">@kmh</span>
+						<span class="unit">KM/H</span>
+						<div class="gear @GearClass( v.CurrentGear )">@GearText( v.CurrentGear )</div>
+					</div>
+
+					<!-- needle drawn LAST so only it sits above the readout -->
+					<div class="needle-pivot" style="transform: rotate(@(needle)deg);">
+						<div class="needle"></div>
+					</div>
+				</div>
+
+				<!-- automotive fuel gauge -->
+				<div class="fuelgauge">
+					@{
+						var fp = MathX.Clamp( v.FuelPct, 0f, 1f );
+						var fAng = FuelSweep( fp );
+					}
+
+					<!-- gas-pump watermark (CSS-drawn, behind everything) -->
+					<div class="fuel-logo">
+						<div class="pbody">
+							<div class="pscreen"></div>
+						</div>
+						<div class="pbase"></div>
+						<div class="pnozzle"></div>
+						<div class="phose"></div>
+					</div>
+					@for ( int q = 0; q <= 4; q++ )
+					{
+						var a = FuelSweep( q / 4f );
+						<div class="ftick @(q == 0 ? "red" : "") @(q == 0 || q == 4 ? "major" : "")"
+							 style="left: @(FX( a, FRTick ))px; top: @(FY( a, FRTick ))px; transform: rotate(@(a)deg);"></div>
+					}
+					<span class="fend e" style="left: @(FX( FuelSweep( 0f ), FRNum ) - 9)px; top: @(FY( FuelSweep( 0f ), FRNum ) - 8)px;">E</span>
+					<span class="fend f" style="left: @(FX( FuelSweep( 1f ), FRNum ) - 9)px; top: @(FY( FuelSweep( 1f ), FRNum ) - 8)px;">F</span>
+
+					<div class="fneedle-pivot" style="transform: rotate(@(fAng)deg);">
+						<div class="fneedle @(fp < 0.15f ? "low" : "")"></div>
+					</div>
+					<div class="fhub"></div>
+
+					<div class="fcap">
+						<span class="ficon">FUEL</span>
+						<span class="fpct @(fp < 0.15f ? "low" : "")">@((int)(fp * 100))%</span>
+					</div>
 				</div>
 			</div>
 
-			<div class="readout">
-				<div class="speed">
-					<span class="num">@kmh</span>
-					<span class="unit">KM/H</span>
-				</div>
-				<div class="gear @(GearClass( v.CurrentGear ))">@GearText( v.CurrentGear )</div>
-			</div>
-
-			<div class="rpm">
-				<div class="track">
-					<div class="fill @(redline ? "redline" : "")" style="width: @(rpmFrac * 100)%;"></div>
-				</div>
-				<span class="rpmval">@((int)v.EngineRpm) RPM</span>
-			</div>
-
-			<div class="bars">
-				<div class="bar">
-					<span class="lbl">FUEL</span>
-					<div class="track"><div class="fill fuel" style="width: @(v.FuelPct * 100)%;"></div></div>
-				</div>
-				<div class="bar">
-					<span class="lbl">SPD</span>
-					<div class="track"><div class="fill spd" style="width: @(MathX.Clamp( kmh / (float)maxKmh, 0f, 1f ) * 100)%;"></div></div>
-				</div>
+			<!-- dashboard tell-tales -->
+			<div class="tells">
+				<div class="tell eng @(v.EngineHealthPct < 0.3f ? "on" : "")">CHECK</div>
+				<div class="tell oil @(v.IsLowOil ? "on" : "")">OIL</div>
+				<div class="tell bat @(v.BatteryPct < 0.15f ? "on" : "")">BATT</div>
+				<div class="tell tire @(v.TirePunctureMask != 0 ? "on" : "")">TIRE</div>
+				<div class="tell off @(!v.IsEngineRunning ? "on" : "")">PWR</div>
+				<div class="tell name">@v.Config.DisplayName</div>
 			</div>
 		</div>
 	}
@@ -60,11 +112,23 @@
 	static VehicleHud _panel;
 	static bool _warnedNoScreen;
 
+	// Gauge geometry (must match the .scss .dial size).
+	const float Size = 260f;
+	const float C = 130f;       // centre
+	const float RTick = 116f;   // tick radius
+	const float RNum = 88f;     // number-label radius
+	const int ShiftLights = 10;
+	const float StartAng = -125f, EndAng = 125f; // needle sweep (deg, 0 = up)
+
+	// Fuel gauge geometry (must match .scss .fuelgauge size). Pivot near the
+	// bottom-centre; needle sweeps E (left) → F (right).
+	const float FCx = 80f, FCy = 96f;   // pivot
+	const float FRTick = 64f;           // tick radius
+	const float FRNum = 80f;            // E/F label radius
+	const float FStart = -84f, FEnd = 84f;
+
 	bool Visible => Target?.IsValid() == true && Target.Config is not null;
 
-	/// <summary>Show the HUD for <paramref name="v"/>. Lazily mounts under the
-	/// scene's ScreenPanel (same requirement as vh.diag). Gamemode-agnostic:
-	/// any host calls this with its local driver's vehicle.</summary>
 	public static void Show( VehicleBase v )
 	{
 		Target = v;
@@ -87,6 +151,28 @@
 	}
 
 	public static void Hide() => Target = null;
+
+	static float Sweep( float frac ) => StartAng + (EndAng - StartAng) * MathX.Clamp( frac, 0f, 1f );
+	static float PX( float angDeg, float r ) => C + r * MathF.Sin( angDeg * MathF.PI / 180f );
+	static float PY( float angDeg, float r ) => C - r * MathF.Cos( angDeg * MathF.PI / 180f );
+
+	static float FuelSweep( float frac ) => FStart + (FEnd - FStart) * MathX.Clamp( frac, 0f, 1f );
+	static float FX( float angDeg, float r ) => FCx + r * MathF.Sin( angDeg * MathF.PI / 180f );
+	static float FY( float angDeg, float r ) => FCy - r * MathF.Cos( angDeg * MathF.PI / 180f );
+
+	static int TickStep( int maxKmh )
+	{
+		if ( maxKmh <= 80 ) return 10;
+		if ( maxKmh <= 180 ) return 20;
+		return 40;
+	}
+
+	string ShiftClass( int i )
+	{
+		if ( i >= ShiftLights - 2 ) return "red";
+		if ( i >= ShiftLights - 5 ) return "amber";
+		return "green";
+	}
 
 	string GearText( int g ) => g switch { -1 => "R", 0 => "N", _ => g.ToString() };
 	string GearClass( int g ) => g switch { -1 => "rev", 0 => "neutral", _ => "drive" };
