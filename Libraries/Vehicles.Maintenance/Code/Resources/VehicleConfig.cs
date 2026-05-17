@@ -71,6 +71,17 @@ public sealed class VehicleConfig : GameResource
 	[Group( "Audio" ), Property, ResourceType( "sound" )]
 	public string HornSoundPath { get; set; }
 
+	// v1.1 additive (optional — leave empty to skip). Engine loop is the
+	// EngineSoundPath above; mark THAT .sound asset as looping.
+	[Group( "Audio" ), Property, ResourceType( "sound" )]
+	public string EngineStartSoundPath { get; set; }
+
+	[Group( "Audio" ), Property, ResourceType( "sound" )]
+	public string GearShiftSoundPath { get; set; }
+
+	[Group( "Audio" ), Property, ResourceType( "sound" )]
+	public string SkidSoundPath { get; set; }
+
 	// ─── Cosmetics ────────────────────────────────────────────────────
 	[Group( "Cosmetics" ), Property]
 	public bool PaintTintable { get; set; } = true;

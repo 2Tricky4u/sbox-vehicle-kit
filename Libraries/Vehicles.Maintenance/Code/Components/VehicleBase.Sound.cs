@@ -1,46 +1,99 @@
 using Sandbox;
+using System;
 
 namespace Vehicles.Maintenance;
 
-// Audio layer — minimal compile-safe version. Plays one-shot sounds on
-// engine on/off and horn events. Looping engine + RPM-pitch deferred until
-// the s&box SoundHandle property/method names are verified for this version
-// (see TODO §1 sound task — reintroduce pitching once we know the API).
+// Audio layer. A looping engine sound whose PITCH tracks EngineRpm, plus
+// one-shots for engine start/stop, gear shifts, horn and tyre skid.
 //
-// Asset paths come from VehicleConfig.EngineSoundPath / HornSoundPath. If
-// either is empty, the corresponding playback is skipped silently.
+// Asset paths come from VehicleConfig (Audio group). Any empty path is
+// skipped silently, so the library is mute until you author .sound assets
+// and assign them. IMPORTANT: mark the EngineSoundPath .sound asset as
+// LOOPING in the sound editor — the loop relies on the asset's loop flag.
+//
+// All SoundHandle access is wrapped defensively: if a member/name differs in
+// your s&box build it degrades to silence rather than throwing.
 public sealed partial class VehicleBase
 {
+	// Pitch multiplier at idle vs. redline. Tune to taste per project.
+	const float EngineMinPitch = 0.55f;
+	const float EngineMaxPitch = 2.10f;
+
+	SoundHandle _engineLoop;
+
 	void TickSound( float dt )
 	{
-		// Reserved — when SoundHandle pitching API is verified we'll update
-		// the engine loop's Pitch from EngineRpm here. No-op for now.
+		if ( IsEngineRunning )
+		{
+			EnsureEngineLoop();
+			if ( _engineLoop is not null )
+			{
+				try
+				{
+					var rpmFrac = RedlineRpm > 1f
+						? MathX.Clamp( EngineRpm / RedlineRpm, 0f, 1f )
+						: 0f;
+					_engineLoop.Pitch = MathX.Lerp( EngineMinPitch, EngineMaxPitch, rpmFrac );
+					_engineLoop.Volume = 0.55f + 0.45f * MathX.Clamp( MathF.Abs( ThrottleInput ), 0f, 1f );
+					_engineLoop.Position = WorldPosition;
+				}
+				catch { /* SoundHandle member differs in this build */ }
+			}
+		}
+		else
+		{
+			StopEngineLoop();
+		}
+	}
+
+	void EnsureEngineLoop()
+	{
+		if ( _engineLoop is not null ) return;
+		if ( string.IsNullOrEmpty( Config?.EngineSoundPath ) ) return;
+		try { _engineLoop = Sound.Play( Config.EngineSoundPath, WorldPosition ); }
+		catch { _engineLoop = null; }
+	}
+
+	void StopEngineLoop()
+	{
+		if ( _engineLoop is null ) return;
+		try { _engineLoop.Stop( 0.15f ); } catch { }
+		_engineLoop = null;
 	}
 
 	void PlayOneShot( string path )
 	{
 		if ( string.IsNullOrEmpty( path ) ) return;
 		try { Sound.Play( path, WorldPosition ); }
-		catch { /* path may be invalid or sound system unavailable */ }
+		catch { /* path invalid or sound system unavailable */ }
 	}
 
+	// ── Event bus handlers (filter by v == this; static bus) ──────────
 	void OnHornFromBus( VehicleBase v )
 	{
-		if ( v != this ) return;
-		PlayOneShot( Config?.HornSoundPath );
+		if ( v == this ) PlayOneShot( Config?.HornSoundPath );
 	}
 
 	void OnEngineStartedFromBus( VehicleBase v )
 	{
 		if ( v != this ) return;
-		PlayOneShot( Config?.EngineSoundPath );
+		PlayOneShot( Config?.EngineStartSoundPath );
+		EnsureEngineLoop();
 	}
 
 	void OnEngineStoppedFromBus( VehicleBase v )
 	{
-		if ( v != this ) return;
-		// No "stop" sound asset by convention — the engine loop simply ends
-		// when the start sound finishes (since we're not looping yet).
+		if ( v == this ) StopEngineLoop();
+	}
+
+	void OnShiftedFromBus( VehicleBase v, int oldGear, int newGear )
+	{
+		if ( v == this ) PlayOneShot( Config?.GearShiftSoundPath );
+	}
+
+	void OnSkidStartedFromBus( VehicleBase v, int wheelIdx )
+	{
+		if ( v == this ) PlayOneShot( Config?.SkidSoundPath );
 	}
 
 	void SoundSubscribe()
@@ -48,6 +101,8 @@ public sealed partial class VehicleBase
 		VehicleEvents.OnHorn += OnHornFromBus;
 		VehicleEvents.OnEngineStarted += OnEngineStartedFromBus;
 		VehicleEvents.OnEngineStopped += OnEngineStoppedFromBus;
+		VehicleEvents.OnShifted += OnShiftedFromBus;
+		VehicleEvents.OnWheelSkidStarted += OnSkidStartedFromBus;
 	}
 
 	void SoundUnsubscribe()
@@ -55,5 +110,8 @@ public sealed partial class VehicleBase
 		VehicleEvents.OnHorn -= OnHornFromBus;
 		VehicleEvents.OnEngineStarted -= OnEngineStartedFromBus;
 		VehicleEvents.OnEngineStopped -= OnEngineStoppedFromBus;
+		VehicleEvents.OnShifted -= OnShiftedFromBus;
+		VehicleEvents.OnWheelSkidStarted -= OnSkidStartedFromBus;
+		StopEngineLoop();
 	}
 }
