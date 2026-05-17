@@ -84,6 +84,7 @@ public static class VehicleDevCommands
 		Log.Info( "  vh.horn                            — honk" );
 		Log.Info( "  vh.flip                            — flip/recover nearest (zeroes velocity, levels rotation)" );
 		Log.Info( "  vh.debug                           — toggle DebugLog on nearest" );
+		Log.Info( "  vh.debugdraw [seconds]             — draw wheel rays + forward arrow + collider (0=stop)" );
 		Log.Info( "  vh.heal                            — fully restore nearest (fuel, engine, body, tires)" );
 		Log.Info( "  vh.cheat                           — toggle owner-side LocalSimulation (solo testing aid)" );
 		Log.Info( "  vh.diag                            — open the DiagnosticPanel for nearest vehicle" );
@@ -344,6 +345,26 @@ public static class VehicleDevCommands
 		Log.Info( $"[vh] DebugLog → {v.DebugLog}" );
 	}
 
+	[ConCmd( "vh.debugdraw" )]
+	public static void DebugDraw( float seconds = 8f )
+	{
+		if ( !TryRequireVehicle( out var v ) ) return;
+
+		var existing = v.GetComponent<VehicleDebugDraw>();
+		if ( seconds <= 0f )
+		{
+			existing?.Destroy();
+			Log.Info( "[vh] debugdraw stopped." );
+			return;
+		}
+
+		var drawer = v.GetOrAddComponent<VehicleDebugDraw>();
+		drawer.Vehicle = v;
+		drawer.Expire = seconds;
+		Log.Info( $"[vh] debugdraw on '{v.Config?.DisplayName ?? v.GameObject.Name}' for {seconds:F0}s. " +
+			"GREEN=forward (drive dir, root +X) · CYAN=wheel ray · YELLOW=anchor · RED=ground hit · ORANGE=wheel rest · WHITE=collider box" );
+	}
+
 	[ConCmd( "vh.cheat" )]
 	public static void ToggleLocalSim()
 	{
@@ -433,5 +454,118 @@ public static class VehicleDevCommands
 		{
 			Log.Info( "[vh] Mechanic-job toggle requires the host to expose a setter — your registered IVehicleHost doesn't." );
 		}
+	}
+}
+
+/// <summary>
+/// Transient in-world debug visualizer added by <c>vh.debugdraw</c>. Redraws
+/// every frame (no per-line duration param, so it works across s&amp;box
+/// versions — only depends on <c>Scene.DebugOverlay.Line</c>) and self-destroys
+/// when <see cref="Expire"/> elapses. One per vehicle.
+///
+/// Legend: GREEN = forward / drive direction (root +X) · CYAN = wheel raycast ·
+/// YELLOW = wheel anchor · RED = ground hit · ORANGE = wheel rest height ·
+/// WHITE = BoxCollider bounds.
+/// </summary>
+public sealed class VehicleDebugDraw : Component
+{
+	public VehicleBase Vehicle { get; set; }
+	public TimeUntil Expire { get; set; }
+
+	bool _warned;
+
+	protected override void OnUpdate()
+	{
+		if ( Vehicle?.IsValid() != true || Expire <= 0f ) { Destroy(); return; }
+
+		try { Draw(); }
+		catch ( System.Exception e )
+		{
+			if ( !_warned )
+			{
+				_warned = true;
+				Log.Warning( $"[vh] debugdraw: Scene.DebugOverlay API unavailable in this s&box build ({e.Message}). Stopping." );
+			}
+			Destroy();
+		}
+	}
+
+	void Draw()
+	{
+		var dbg = Scene?.DebugOverlay;
+		if ( dbg is null ) return;
+
+		// Single point of contact with the s&box debug API. `dbg` is `var`
+		// so the overlay's concrete type name never appears in our code;
+		// helpers take this delegate, keeping the API surface to one call.
+		void Line( Vector3 a, Vector3 b, Color c ) => dbg.Line( a, b, c );
+
+		var orange = new Color( 1f, 0.6f, 0f );
+
+		// Forward arrow — physics drive direction (root +X). Compare against
+		// the copcar mesh nose: if they don't agree, rotate the model child.
+		var fwd = Vehicle.WorldRotation.Forward;
+		var right = Vehicle.WorldRotation.Right;
+		var a0 = Vehicle.WorldPosition + Vector3.Up * 12f;
+		var tip = a0 + fwd * 120f;
+		Line( a0, tip, Color.Green );
+		Line( tip, tip - fwd * 26f + right * 18f, Color.Green );
+		Line( tip, tip - fwd * 26f - right * 18f, Color.Green );
+
+		// Wheel raycasts.
+		var down = Vehicle.WorldRotation * Vector3.Down;
+		var len = Vehicle.SuspensionLengthRelaxed + Vehicle.WheelRadius;
+		var anchors = Vehicle.WheelAnchors;
+		if ( anchors != null )
+		{
+			for ( int i = 0; i < anchors.Count; i++ )
+			{
+				var anchor = anchors[i];
+				if ( anchor?.IsValid() != true ) continue;
+				var o = anchor.WorldPosition;
+				var end = o + down * len;
+				Line( o, end, Color.Cyan );
+				Cross( Line, o, 6f, Color.Yellow );
+
+				var tr = Scene.Trace.Ray( o, end ).IgnoreGameObject( Vehicle.GameObject ).Run();
+				if ( tr.Hit )
+				{
+					Cross( Line, tr.HitPosition, 9f, Color.Red );
+					Cross( Line, tr.HitPosition - down * Vehicle.WheelRadius, 6f, orange );
+				}
+			}
+		}
+
+		// Collider bounds (built from lines so we don't depend on a Box overload).
+		var box = Vehicle.GetComponentInChildren<BoxCollider>();
+		if ( box is not null )
+			DrawOrientedBox( Line, Vehicle.WorldPosition, Vehicle.WorldRotation, box.Center, box.Scale, Color.White );
+	}
+
+	static void Cross( System.Action<Vector3, Vector3, Color> line, Vector3 p, float s, Color c )
+	{
+		line( p - Vector3.Forward * s, p + Vector3.Forward * s, c );
+		line( p - Vector3.Left * s, p + Vector3.Left * s, c );
+		line( p - Vector3.Up * s, p + Vector3.Up * s, c );
+	}
+
+	static void DrawOrientedBox( System.Action<Vector3, Vector3, Color> line, Vector3 origin, Rotation rot, Vector3 center, Vector3 size, Color c )
+	{
+		var h = size * 0.5f;
+		var corners = new Vector3[8];
+		int n = 0;
+		for ( int sx = -1; sx <= 1; sx += 2 )
+		for ( int sy = -1; sy <= 1; sy += 2 )
+		for ( int sz = -1; sz <= 1; sz += 2 )
+			corners[n++] = origin + rot * (center + new Vector3( sx * h.x, sy * h.y, sz * h.z ));
+
+		// indices: bit0=x, bit1=y, bit2=z (matches loop order above)
+		int[,] edges =
+		{
+			{0,1},{0,2},{0,4},{1,3},{1,5},{2,3},
+			{2,6},{3,7},{4,5},{4,6},{5,7},{6,7}
+		};
+		for ( int e = 0; e < edges.GetLength( 0 ); e++ )
+			line( corners[edges[e, 0]], corners[edges[e, 1]], c );
 	}
 }
