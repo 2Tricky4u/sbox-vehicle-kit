@@ -43,15 +43,12 @@
 						<span class="tnum" style="left: @(PX( a, RNum ) - 16)px; top: @(PY( a, RNum ) - 9)px;">@s</span>
 					}
 
+					<!-- gear, beside the needle -->
+					<div class="dgear @GearClass( v.CurrentGear )">@GearText( v.CurrentGear )</div>
+
 					<div class="hub"></div>
 
-					<div class="centre">
-						<span class="kmh">@kmh</span>
-						<span class="unit">KM/H</span>
-						<div class="gear @GearClass( v.CurrentGear )">@GearText( v.CurrentGear )</div>
-					</div>
-
-					<!-- needle drawn LAST so only it sits above the readout -->
+					<!-- needle drawn LAST so it sits on top of the dial -->
 					<div class="needle-pivot" style="transform: rotate(@(needle)deg);">
 						<div class="needle"></div>
 					</div>
@@ -91,6 +88,19 @@
 						<span class="ficon">FUEL</span>
 						<span class="fpct @(fp < 0.15f ? "low" : "")">@((int)(fp * 100))%</span>
 					</div>
+				</div>
+			</div>
+
+			<!-- speed + gear readout (outside the dial so nothing clips it) -->
+			<div class="speedline">
+				<div class="grp">
+					<span class="big">@kmh</span>
+					<span class="lbl">KM/H</span>
+				</div>
+				<div class="sep"></div>
+				<div class="grp">
+					<span class="big">@((int)v.EngineRpm)</span>
+					<span class="lbl">RPM</span>
 				</div>
 			</div>
 
