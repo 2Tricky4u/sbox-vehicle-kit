@@ -1,0 +1,103 @@
+@using Sandbox
+@using Sandbox.UI
+@using System
+@using System.Linq
+@namespace Vehicles.Maintenance
+
+<root class="vehicle-hud @(Visible ? "" : "hidden")">
+	@if ( Visible )
+	{
+		var v = Target;
+		var kmh = (int)MathF.Round( v.KinematicVelocity.Length * 0.09144f );
+		var rpmFrac = v.RedlineRpm > 1f ? MathX.Clamp( v.EngineRpm / v.RedlineRpm, 0f, 1f ) : 0f;
+		var redline = rpmFrac >= 0.92f;
+		var maxKmh = v.Config.MaxSpeedKmh > 0 ? v.Config.MaxSpeedKmh : 140;
+
+		<div class="cluster">
+			<div class="topline">
+				<span class="name">@v.Config.DisplayName</span>
+				<div class="warns">
+					@if ( v.FuelPct < 0.15f ) { <span class="warn fuel">FUEL</span> }
+					@if ( v.EngineHealthPct < 0.3f ) { <span class="warn eng">ENGINE</span> }
+					@if ( v.IsLowOil ) { <span class="warn oil">OIL</span> }
+					@if ( v.BatteryPct < 0.15f ) { <span class="warn bat">BATT</span> }
+					@if ( v.TirePunctureMask != 0 ) { <span class="warn tire">TIRE</span> }
+					@if ( !v.IsEngineRunning ) { <span class="warn off">ENGINE OFF</span> }
+				</div>
+			</div>
+
+			<div class="readout">
+				<div class="speed">
+					<span class="num">@kmh</span>
+					<span class="unit">KM/H</span>
+				</div>
+				<div class="gear @(GearClass( v.CurrentGear ))">@GearText( v.CurrentGear )</div>
+			</div>
+
+			<div class="rpm">
+				<div class="track">
+					<div class="fill @(redline ? "redline" : "")" style="width: @(rpmFrac * 100)%;"></div>
+				</div>
+				<span class="rpmval">@((int)v.EngineRpm) RPM</span>
+			</div>
+
+			<div class="bars">
+				<div class="bar">
+					<span class="lbl">FUEL</span>
+					<div class="track"><div class="fill fuel" style="width: @(v.FuelPct * 100)%;"></div></div>
+				</div>
+				<div class="bar">
+					<span class="lbl">SPD</span>
+					<div class="track"><div class="fill spd" style="width: @(MathX.Clamp( kmh / (float)maxKmh, 0f, 1f ) * 100)%;"></div></div>
+				</div>
+			</div>
+		</div>
+	}
+</root>
+
+@code {
+	public static VehicleBase Target { get; private set; }
+	static VehicleHud _panel;
+	static bool _warnedNoScreen;
+
+	bool Visible => Target?.IsValid() == true && Target.Config is not null;
+
+	/// <summary>Show the HUD for <paramref name="v"/>. Lazily mounts under the
+	/// scene's ScreenPanel (same requirement as vh.diag). Gamemode-agnostic:
+	/// any host calls this with its local driver's vehicle.</summary>
+	public static void Show( VehicleBase v )
+	{
+		Target = v;
+		if ( _panel?.IsValid() == true ) return;
+
+		var screen = Game.ActiveScene?.GetAllComponents<ScreenPanel>().FirstOrDefault();
+		var root = screen?.GetPanel();
+		if ( root is null )
+		{
+			if ( !_warnedNoScreen )
+			{
+				_warnedNoScreen = true;
+				Log.Warning( "[VehicleHud] No ScreenPanel in scene — add a GameObject with a ScreenPanel for the HUD (same as vh.diag)." );
+			}
+			return;
+		}
+
+		_panel = new VehicleHud();
+		_panel.Parent = root;
+	}
+
+	public static void Hide() => Target = null;
+
+	string GearText( int g ) => g switch { -1 => "R", 0 => "N", _ => g.ToString() };
+	string GearClass( int g ) => g switch { -1 => "rev", 0 => "neutral", _ => "drive" };
+
+	protected override int BuildHash() => HashCode.Combine(
+		Target,
+		Target?.EngineRpm ?? 0f,
+		Target?.CurrentGear ?? 0,
+		(int)((Target?.KinematicVelocity.Length ?? 0f) * 0.09144f),
+		Target?.FuelPct ?? 0f,
+		Target?.EngineHealthPct ?? 0f,
+		Target?.OilPct ?? 0f,
+		Target?.TirePunctureMask ?? 0u );
+}
