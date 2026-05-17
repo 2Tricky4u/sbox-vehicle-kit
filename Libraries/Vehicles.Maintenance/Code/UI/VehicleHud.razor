@@ -16,19 +16,8 @@
 		var lit = (int)MathF.Round( rpmFrac * ShiftLights );
 		var step = TickStep( maxKmh );
 
-		<div class="hud-wrap">
-
-			<!-- shift / rev lights -->
-			<div class="shift">
-				@for ( int i = 0; i < ShiftLights; i++ )
-				{
-					var on = i < lit;
-					<div class="sl @ShiftClass( i ) @(on ? "on" : "")"></div>
-				}
-			</div>
-
-			<div class="gauges">
-				<!-- speedometer -->
+		<!-- speedometer: bottom-right -->
+		<div class="right-cluster">
 				<div class="dial">
 					@for ( int s = 0; s <= maxKmh; s += step )
 					{
@@ -53,7 +42,10 @@
 						<div class="needle"></div>
 					</div>
 				</div>
+		</div>
 
+		<!-- fuel gauge: bottom-left -->
+		<div class="left-cluster">
 				<!-- automotive fuel gauge -->
 				<div class="fuelgauge">
 					@{
@@ -89,9 +81,11 @@
 						<span class="fpct @(fp < 0.15f ? "low" : "")">@((int)(fp * 100))%</span>
 					</div>
 				</div>
-			</div>
+		</div>
 
-			<!-- speed + gear readout (outside the dial so nothing clips it) -->
+		<!-- centre: KM/H | RPM on top, then shift lights, then tell-tales -->
+		<div class="center-cluster">
+			<!-- speed + RPM readout (most above) -->
 			<div class="speedline">
 				<div class="grp">
 					<span class="big">@kmh</span>
@@ -102,6 +96,15 @@
 					<span class="big">@((int)v.EngineRpm)</span>
 					<span class="lbl">RPM</span>
 				</div>
+			</div>
+
+			<!-- shift / rev lights -->
+			<div class="shift">
+				@for ( int i = 0; i < ShiftLights; i++ )
+				{
+					var on = i < lit;
+					<div class="sl @ShiftClass( i ) @(on ? "on" : "")"></div>
+				}
 			</div>
 
 			<!-- dashboard tell-tales -->

@@ -1,10 +1,9 @@
 .racing-hud {
 	position: absolute;
-	bottom: 32px;
+	top: 0px;
 	left: 0px;
 	right: 0px;
-	justify-content: center;
-	align-items: flex-end;
+	bottom: 0px;
 	pointer-events: none;
 	font-family: "Roboto Condensed", Roboto, sans-serif;
 	transition: opacity 0.25s ease;
@@ -12,9 +11,29 @@
 
 	&.hidden { opacity: 0; }
 
-	.hud-wrap {
+	// fuel gauge pinned bottom-left (inset so the needle reads more centred)
+	.left-cluster {
+		position: absolute;
+		left: 12%;
+		bottom: 2%;
+	}
+
+	// speedometer pinned bottom-right (inset for the same reason)
+	.right-cluster {
+		position: absolute;
+		right: 12%;
+		bottom: 2%;
+	}
+
+	// KM/H|RPM (top) → shift lights → tell-tales, centred along the bottom
+	.center-cluster {
+		position: absolute;
+		left: 0px;
+		right: 0px;
+		bottom: 2%;
 		flex-direction: column;
 		align-items: center;
+		justify-content: flex-end;
 		gap: 8px;
 	}
 
@@ -38,13 +57,7 @@
 		.sl.on.red    { background-color: rgba( 255, 60, 60, 1 );   box-shadow: 0px 0px 10px rgba( 255, 60, 60, 0.9 ); }
 	}
 
-	// ── circular gauge ──────────────────────────────────
-	.gauges {
-		flex-direction: row;
-		align-items: flex-end;
-		gap: 18px;
-	}
-
+	// ── circular speedometer (bottom-right) ─────────────
 	.dial {
 		position: relative;
 		width: 260px;
