@@ -1,4 +1,5 @@
 using Sandbox;
+using System.Collections.Generic;
 using System.Linq;
 using Vehicles.Maintenance;
 
@@ -47,7 +48,7 @@ public sealed class SeatInteractor : Component
 	[Property] public PlayerController Player { get; set; }
 
 	VehicleSeat _seat;
-	GameObject _prevParent;
+	readonly List<Component> _disabled = new();
 
 	public bool IsSeated => _seat?.IsValid() == true && _seat.OccupantId == GameObject.Id;
 
@@ -155,17 +156,23 @@ public sealed class SeatInteractor : Component
 		Log.Info( $"[SeatInteractor] Exited seat of {v?.Config?.DisplayName ?? v?.GameObject.Name ?? "vehicle"}." );
 	}
 
-	// Disable the controller so it stops walking/aiming the camera, and ride
-	// the seat anchor so the body moves with the car.
+	// Dev harness: while seated we just HIDE the player (no seated-animation
+	// rig). Disable the controller (movement), the body renderers (so it
+	// doesn't run-animate above the car), the colliders and the player
+	// Rigidbody (so the invisible body doesn't fall or block the car). No
+	// parenting — the body is hidden, so where it sits doesn't matter; on
+	// exit we teleport it beside the car.
 	void FreezePlayerInto( VehicleSeat seat )
 	{
 		try
 		{
-			if ( Player is not null ) Player.Enabled = false;
-			_prevParent = GameObject.Parent;
-			GameObject.SetParent( seat.GameObject, false );
-			LocalPosition = Vector3.Zero;
-			LocalRotation = Rotation.Identity;
+			var pgo = Player?.GameObject ?? GameObject;
+
+			Off( Player );
+			Off( pgo.GetComponent<Rigidbody>() );
+			foreach ( var r in pgo.GetComponentsInChildren<SkinnedModelRenderer>() ) Off( r );
+			foreach ( var r in pgo.GetComponentsInChildren<ModelRenderer>() ) Off( r );
+			foreach ( var c in pgo.GetComponentsInChildren<Collider>() ) Off( c );
 		}
 		catch ( System.Exception e )
 		{
@@ -173,24 +180,32 @@ public sealed class SeatInteractor : Component
 		}
 	}
 
-	// Put the player back on its feet beside the car and hand control back to
-	// the s&box PlayerController (it resumes camera + movement on re-enable).
+	void Off( Component c )
+	{
+		if ( c?.IsValid() == true && c.Enabled )
+		{
+			c.Enabled = false;
+			_disabled.Add( c );
+		}
+	}
+
+	// Put the player back beside the car and re-enable everything we turned
+	// off (the PlayerController resumes its own camera + movement).
 	void RestorePlayer( VehicleSeat seat )
 	{
 		try
 		{
-			GameObject.SetParent( _prevParent, false );
-			_prevParent = null;
-
 			if ( seat?.Vehicle?.IsValid() == true )
 			{
 				var v = seat.Vehicle;
-				var dropPos = seat.WorldPosition + v.WorldRotation.Left * 70f + Vector3.Up * 10f;
-				WorldPosition = dropPos;
-				WorldRotation = Rotation.FromYaw( v.WorldRotation.Yaw() );
+				var pgo = Player?.GameObject ?? GameObject;
+				pgo.WorldPosition = seat.WorldPosition + v.WorldRotation.Left * 70f + Vector3.Up * 10f;
+				pgo.WorldRotation = Rotation.FromYaw( v.WorldRotation.Yaw() );
 			}
 
-			if ( Player is not null ) Player.Enabled = true;
+			foreach ( var c in _disabled )
+				if ( c?.IsValid() == true ) c.Enabled = true;
+			_disabled.Clear();
 		}
 		catch ( System.Exception e )
 		{
