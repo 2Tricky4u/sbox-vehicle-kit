@@ -91,6 +91,8 @@ public static class VehicleDevCommands
 		Log.Info( "  vh.diag                            — open the DiagnosticPanel for nearest vehicle" );
 		Log.Info( "  vh.hud                             — toggle the in-vehicle HUD on nearest vehicle" );
 		Log.Info( "  vh.cam [first|third]               — global driving camera (no arg = toggle)" );
+		Log.Info( "  vh.partsui                         — toggle the RepairTool part-select panel" );
+		Log.Info( "  vh.toast [message]                 — show a test feedback toast" );
 		Log.Info( "  vh.parts                           — list .partdef assets" );
 		Log.Info( "  vh.give <partIdent> [count]        — add parts to local mechanic's inventory" );
 		Log.Info( "  vh.mechanic                        — info on toggling mechanic job (stub host = always mechanic)" );
@@ -551,6 +553,27 @@ public static class VehicleDevCommands
 			VehicleCamera.Mode = VehicleCameraMode.ThirdPerson;
 
 		Log.Info( $"[vh] Driving camera → {VehicleCamera.Mode} (global). Set VehicleCamera.Mode in your gamemode bootstrap to make it the permanent default." );
+	}
+
+	[ConCmd( "vh.partsui" )]
+	public static void OpenPartSelect()
+	{
+		var scene = ActiveScene;
+		var tool = scene?.GetAllComponents<RepairTool>().FirstOrDefault();
+		if ( tool is null )
+		{
+			Log.Warning( "[vh] No RepairTool in scene. Add a GameObject with a RepairTool component (a player would normally hold one)." );
+			return;
+		}
+		PartSelectPanel.Toggle( tool );
+		Log.Info( "[vh] Toggled PartSelectPanel for the scene's RepairTool (needs a ScreenPanel in scene)." );
+	}
+
+	[ConCmd( "vh.toast" )]
+	public static void TestToast( string message = "Test toast" )
+	{
+		Toast.Show( message );
+		Log.Info( $"[vh] Toast.Show(\"{message}\") — needs a ScreenPanel in scene." );
 	}
 
 	[ConCmd( "vh.parts" )]

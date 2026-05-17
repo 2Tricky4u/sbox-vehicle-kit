@@ -19,22 +19,15 @@ public sealed class RepairTool : Component
 	protected override void OnUpdate()
 	{
 		if ( !Network.IsOwner ) return;
+
+		// Part-select UI hotkey (separate from the repair action).
+		if ( Input.Pressed( "flashlight" ) )
+		{
+			PartSelectPanel.Toggle( this );
+			return;
+		}
+
 		if ( !Input.Pressed( "attack1" ) ) return;
-
-		if ( VehicleHost.Current is null )
-		{
-			Log.Warning( "RepairTool used but no IVehicleHost is registered." );
-			return;
-		}
-
-		var conn = GameObject.Network.Owner;
-		if ( conn is null ) return;
-
-		if ( !VehicleHost.Current.IsMechanic( conn ) )
-		{
-			// TODO: surface "Mechanic job required" hint in UI
-			return;
-		}
 
 		var cam = Scene.Camera;
 		if ( cam is null ) return;
@@ -49,26 +42,39 @@ public sealed class RepairTool : Component
 		var vehicle = tr.GameObject?.Components.GetInAncestorsOrSelf<VehicleBase>();
 		if ( vehicle is null ) return;
 
+		// No part chosen yet → open the selector instead of doing nothing.
 		if ( CurrentPart is null )
 		{
-			// TODO: open part-select UI; for v1 require CurrentPart to be set in inspector
+			PartSelectPanel.Toggle( this );
 			return;
 		}
 
-		// Gamemode-registered custom action takes precedence over the default flow.
-		// Example: gamemode wants a minigame for engine repair, or a different
-		// pricing model. Registry returns true if it ran the alternative.
-		if ( RepairActionRegistry.TryInvoke( CurrentPart.RepairsPart, vehicle, conn ) )
-			return;
+		// Single shared pipeline (also used by DiagnosticPanel).
+		var conn = GameObject.Network.Owner;
+		var res = RepairFlow.TryRepair( vehicle, conn, CurrentPart, LabourPayoutPerRepair );
 
-		var inv = VehicleHost.Current.GetInventory( conn );
-		if ( inv is null || !inv.TryConsume( CurrentPart, 1 ) )
+		switch ( res.Outcome )
 		{
-			// TODO: surface "out of parts" hint
-			return;
+			case RepairOutcome.Repaired:
+				Log.Info( $"[RepairTool] Repaired {res.Part} (+{res.Def.RepairAmount:F0}, paid ${res.Payout})" );
+				Toast.Show( $"Repaired {res.Part} +{res.Def.RepairAmount:F0} (+${res.Payout})" );
+				break;
+			case RepairOutcome.CustomActionRan:
+				Log.Info( $"[RepairTool] Custom {res.Part} repair invoked" );
+				Toast.Show( $"Custom {res.Part} repair" );
+				break;
+			case RepairOutcome.OutOfParts:
+				Log.Warning( $"[RepairTool] Out of {res.Def?.DisplayName ?? res.Part.ToString()}" );
+				Toast.Show( $"Out of {res.Def?.DisplayName ?? res.Part.ToString()}" );
+				break;
+			case RepairOutcome.NotMechanic:
+				Log.Warning( "[RepairTool] Mechanic job required" );
+				Toast.Show( "Mechanic job required" );
+				break;
+			default:
+				Log.Info( $"[RepairTool] Repair failed: {res.Outcome}" );
+				Toast.Show( $"Can't repair: {res.Outcome}" );
+				break;
 		}
-
-		vehicle.RepairRpc( CurrentPart.RepairsPart, CurrentPart.RepairAmount );
-		VehicleHost.Current.Pay( conn, LabourPayoutPerRepair, "Repair labour" );
 	}
 }

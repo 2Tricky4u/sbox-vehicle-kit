@@ -1514,6 +1514,21 @@
           "OnComponentUpdate": null,
           "Player": null,
           "UseRange": 200
+        },
+        {
+          "__type": "Vehicles.Maintenance.RepairTool",
+          "__guid": "814f1045-4733-4f3a-935a-ab0d5f3667e1",
+          "__enabled": true,
+          "Flags": 0,
+          "CurrentPart": null,
+          "LabourPayoutPerRepair": 50,
+          "OnComponentDestroy": null,
+          "OnComponentDisabled": null,
+          "OnComponentEnabled": null,
+          "OnComponentFixedUpdate": null,
+          "OnComponentStart": null,
+          "OnComponentUpdate": null,
+          "UseRange": 100
         }
       ],
       "Children": [

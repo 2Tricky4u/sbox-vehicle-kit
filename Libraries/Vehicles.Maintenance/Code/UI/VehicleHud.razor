@@ -123,7 +123,6 @@
 @code {
 	public static VehicleBase Target { get; private set; }
 	static VehicleHud _panel;
-	static bool _warnedNoScreen;
 
 	// Gauge geometry (must match the .scss .dial size).
 	const float Size = 260f;
@@ -147,17 +146,8 @@
 		Target = v;
 		if ( _panel?.IsValid() == true ) return;
 
-		var screen = Game.ActiveScene?.GetAllComponents<ScreenPanel>().FirstOrDefault();
-		var root = screen?.GetPanel();
-		if ( root is null )
-		{
-			if ( !_warnedNoScreen )
-			{
-				_warnedNoScreen = true;
-				Log.Warning( "[VehicleHud] No ScreenPanel in scene — add a GameObject with a ScreenPanel for the HUD (same as vh.diag)." );
-			}
-			return;
-		}
+		var root = VehicleUi.MountRoot();
+		if ( root is null ) return;
 
 		_panel = new VehicleHud();
 		_panel.Parent = root;

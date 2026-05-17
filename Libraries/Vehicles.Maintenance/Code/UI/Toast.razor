@@ -1,0 +1,56 @@
+@using Sandbox
+@using Sandbox.UI
+@using System
+@using System.Collections.Generic
+@namespace Vehicles.Maintenance
+
+<root class="toast-stack">
+	@foreach ( var t in _items )
+	{
+		<div class="toast" style="animation-duration: @(t.Seconds)s;">@t.Message</div>
+	}
+</root>
+
+@code {
+	class Item
+	{
+		public string Message;
+		public RealTimeUntil Expire;
+		public float Seconds;
+	}
+
+	static Toast _panel;
+	readonly List<Item> _items = new();
+
+	/// <summary>Show a transient on-screen message. Lazily mounts the single
+	/// Toast panel under the scene's ScreenPanel (same mount as the HUD /
+	/// part-select). Safe to call from anywhere.</summary>
+	public static void Show( string message, float seconds = 3f )
+	{
+		if ( string.IsNullOrWhiteSpace( message ) ) return;
+
+		if ( _panel?.IsValid() != true )
+		{
+			var root = VehicleUi.MountRoot();
+			if ( root is null ) return;
+			_panel = new Toast();
+			_panel.Parent = root;
+		}
+
+		_panel._items.Add( new Item { Message = message, Expire = seconds, Seconds = seconds } );
+	}
+
+	public override void Tick()
+	{
+		base.Tick();
+		_items.RemoveAll( i => i.Expire <= 0f );
+	}
+
+	protected override int BuildHash()
+	{
+		int h = _items.Count;
+		foreach ( var i in _items )
+			h = HashCode.Combine( h, i.Message );
+		return h;
+	}
+}

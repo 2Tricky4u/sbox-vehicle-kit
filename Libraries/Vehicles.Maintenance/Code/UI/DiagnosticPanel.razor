@@ -115,72 +115,36 @@
 		</button>
 	</div>;
 
+	// Both buttons now route through the shared RepairFlow pipeline (the same
+	// one RepairTool uses). We only translate the structured result back into
+	// the exact flash strings this panel showed before.
 	void RepairPart( PartKind part )
 	{
-		if ( !PrecheckRepair( out var inv, out var def, part ) ) return;
-
-		// Gamemode-registered custom action takes precedence over the default flow.
-		if ( RepairActionRegistry.TryInvoke( part, Vehicle, Mechanic ) )
-		{
-			Flash( $"Custom {part} repair invoked" );
-			return;
-		}
-
-		if ( !inv.TryConsume( def, 1 ) )
-		{
-			Flash( $"Out of {def.DisplayName}" );
-			return;
-		}
-
-		Vehicle.RepairRpc( part, def.RepairAmount );
-		VehicleHost.Current.Pay( Mechanic, LabourPayoutPerRepair, $"Repair {part}" );
-		Flash( $"Repaired {part} (+{def.RepairAmount:F0}, paid ${LabourPayoutPerRepair})" );
+		Mechanic ??= Connection.Local;   // keep the field resolved for the UI helpers
+		Flash( MapMsg( RepairFlow.TryRepair( Vehicle, Mechanic, part, LabourPayoutPerRepair ) ) );
 	}
 
 	void RepairTire( int idx )
 	{
-		if ( !PrecheckRepair( out var inv, out var def, PartKind.Tire ) ) return;
-
-		// Note: IRepairAction.Apply doesn't carry wheelIndex, so a custom action
-		// for Tire would apply generically. Default flow handles per-wheel correctly.
-		if ( RepairActionRegistry.TryInvoke( PartKind.Tire, Vehicle, Mechanic ) )
-		{
-			Flash( $"Custom Tire repair invoked" );
-			return;
-		}
-
-		if ( !inv.TryConsume( def, 1 ) )
-		{
-			Flash( $"Out of {def.DisplayName}" );
-			return;
-		}
-
-		Vehicle.RepairRpc( PartKind.Tire, def.RepairAmount, idx );
-		VehicleHost.Current.Pay( Mechanic, LabourPayoutPerRepair, $"Repair tire {idx}" );
-		Flash( $"Repaired Tire {idx + 1} (+{def.RepairAmount:F0}, paid ${LabourPayoutPerRepair})" );
-	}
-
-	bool PrecheckRepair( out IPartInventory inv, out PartDefinition def, PartKind part )
-	{
-		inv = null;
-		def = null;
-		if ( Vehicle is null ) { Flash( "No vehicle" ); return false; }
-		if ( VehicleHost.Current is null ) { Flash( "No host registered" ); return false; }
-
-		// Default Mechanic to the local connection if the caller forgot to set it.
 		Mechanic ??= Connection.Local;
-		if ( Mechanic is null ) { Flash( "No connection" ); return false; }
-
-		if ( !VehicleHost.Current.IsMechanic( Mechanic ) ) { Flash( "Mechanic job required" ); return false; }
-
-		def = PartDefinition.Find( part );
-		if ( def is null ) { Flash( $"No PartDefinition for {part}" ); return false; }
-
-		inv = VehicleHost.Current.GetInventory( Mechanic );
-		if ( inv is null ) { Flash( "No inventory" ); return false; }
-
-		return true;
+		Flash( MapMsg( RepairFlow.TryRepair( Vehicle, Mechanic, PartKind.Tire, LabourPayoutPerRepair, idx ) ) );
 	}
+
+	string MapMsg( RepairResult r ) => r.Outcome switch
+	{
+		RepairOutcome.NoVehicle => "No vehicle",
+		RepairOutcome.NoHost => "No host registered",
+		RepairOutcome.NoConnection => "No connection",
+		RepairOutcome.NotMechanic => "Mechanic job required",
+		RepairOutcome.NoPartDef => $"No PartDefinition for {r.Part}",
+		RepairOutcome.NoInventory => "No inventory",
+		RepairOutcome.OutOfParts => $"Out of {r.Def?.DisplayName}",
+		RepairOutcome.CustomActionRan => $"Custom {r.Part} repair invoked",
+		RepairOutcome.Repaired => r.WheelIndex >= 0
+			? $"Repaired Tire {r.WheelIndex + 1} (+{r.Def.RepairAmount:F0}, paid ${r.Payout})"
+			: $"Repaired {r.Part} (+{r.Def.RepairAmount:F0}, paid ${r.Payout})",
+		_ => r.Outcome.ToString(),
+	};
 
 	void Close() => OnClose?.Invoke();
 

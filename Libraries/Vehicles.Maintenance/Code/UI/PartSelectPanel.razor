@@ -1,0 +1,104 @@
+@using Sandbox
+@using Sandbox.UI
+@using System
+@using System.Linq
+@namespace Vehicles.Maintenance
+
+<root class="part-select-panel">
+	<div class="header">
+		<span class="title">Select Part</span>
+		<button class="close" @onclick=@Close>Close</button>
+	</div>
+
+	@foreach ( var def in PartDefinition.All )
+	{
+		var part = def;
+		var count = CountOf( part );
+		var selected = Tool?.CurrentPart == part;
+		<div class="row @(count > 0 ? "" : "empty") @(selected ? "selected" : "")">
+			<label class="name">@part.DisplayName</label>
+			<label class="kind">@part.RepairsPart</label>
+			<label class="count">x@count</label>
+			<button class=@(selected ? "sel" : "") @onclick=@(() => Pick( part ))>
+				@(selected ? "Selected" : "Select")
+			</button>
+		</div>
+	}
+
+	@if ( !PartDefinition.All.Any() )
+	{
+		<div class="row empty"><label class="name">No part definitions found</label></div>
+	}
+</root>
+
+@code {
+	/// <summary>The RepairTool this panel writes its choice back to.</summary>
+	public RepairTool Tool { get; set; }
+
+	/// <summary>Whose inventory to show. Defaults to the tool's owner / local.</summary>
+	public Connection Mechanic { get; set; }
+
+	public Action OnClose { get; set; }
+
+	static PartSelectPanel _active;
+
+	Connection ResolveMechanic()
+		=> Mechanic ?? Tool?.GameObject?.Network?.Owner ?? Connection.Local;
+
+	int CountOf( PartDefinition def )
+	{
+		if ( def is null || VehicleHost.Current is null ) return 0;
+		var conn = ResolveMechanic();
+		if ( conn is null ) return 0;
+		return VehicleHost.Current.GetInventory( conn )?.CountOf( def ) ?? 0;
+	}
+
+	void Pick( PartDefinition def )
+	{
+		if ( Tool.IsValid() ) Tool.CurrentPart = def;
+		Close();
+	}
+
+	void Close() => OnClose?.Invoke();
+
+	// ── Static lifecycle (mirrors the vh.diag pattern) ────────────────
+	public static void Toggle( RepairTool tool )
+	{
+		if ( _active?.IsValid() == true ) CloseActive();
+		else Open( tool );
+	}
+
+	public static void Open( RepairTool tool )
+	{
+		if ( _active?.IsValid() == true ) _active.Delete();
+
+		var root = VehicleUi.MountRoot();
+		if ( root is null ) return;
+
+		var panel = new PartSelectPanel { Tool = tool };
+		panel.Parent = root;
+		panel.OnClose = () =>
+		{
+			panel.Delete();
+			if ( _active == panel ) _active = null;
+		};
+		_active = panel;
+	}
+
+	public static void CloseActive()
+	{
+		if ( _active?.IsValid() != true ) { _active = null; return; }
+		_active.OnClose?.Invoke();
+	}
+
+	protected override int BuildHash()
+	{
+		int invHash = HashCode.Combine( Tool, Tool?.CurrentPart );
+		if ( VehicleHost.Current is not null )
+		{
+			foreach ( var def in PartDefinition.All )
+				invHash = HashCode.Combine( invHash, def, CountOf( def ) );
+		}
+		return invHash;
+	}
+}
