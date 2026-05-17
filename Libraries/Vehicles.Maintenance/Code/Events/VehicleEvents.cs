@@ -31,6 +31,10 @@ public static class VehicleEvents
 	public static event Action<VehicleBase> OnHorn;
 	public static event Action<VehicleBase, bool> OnHeadlightsToggled;
 
+	// ── Seats ─────────────────────────────────────────────────────────
+	public static event Action<VehicleBase, VehicleSeat> OnSeatEntered;
+	public static event Action<VehicleBase, VehicleSeat> OnSeatExited;
+
 	// ── Internal raisers ──────────────────────────────────────────────
 	internal static void RaiseSpawned( VehicleBase v ) => OnVehicleSpawned?.Invoke( v );
 	internal static void RaiseDestroyed( VehicleBase v ) => OnVehicleDestroyed?.Invoke( v );
@@ -48,4 +52,6 @@ public static class VehicleEvents
 	internal static void RaiseWheelSkidStopped( VehicleBase v, int wheelIdx ) => OnWheelSkidStopped?.Invoke( v, wheelIdx );
 	internal static void RaiseHorn( VehicleBase v ) => OnHorn?.Invoke( v );
 	internal static void RaiseHeadlightsToggled( VehicleBase v, bool on ) => OnHeadlightsToggled?.Invoke( v, on );
+	internal static void RaiseSeatEntered( VehicleBase v, VehicleSeat seat ) => OnSeatEntered?.Invoke( v, seat );
+	internal static void RaiseSeatExited( VehicleBase v, VehicleSeat seat ) => OnSeatExited?.Invoke( v, seat );
 }

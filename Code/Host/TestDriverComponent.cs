@@ -8,6 +8,12 @@ namespace Sandbox.CarMaintenance;
 /// occupy the driver seat for testing — sets HasDriver=true each frame and
 /// follows the vehicle with a chase camera. Replace with real seat enter/exit
 /// logic once the gamemode has a player + interaction system.
+///
+/// SUPERSEDED by <see cref="SeatInteractor"/> + the library
+/// <c>VehicleSeat</c> component (real press-E get-in/get-out). Kept so older
+/// scenes keep loading; migrate by: remove this, add an s&box Player object
+/// (with PlayerController) and put SeatInteractor on it, and add a VehicleSeat
+/// on each seat-anchor child of the vehicle (tick IsDriverSeat on the driver).
 /// </summary>
 [Title( "Test Driver" )]
 [Category( "Vehicles" )]

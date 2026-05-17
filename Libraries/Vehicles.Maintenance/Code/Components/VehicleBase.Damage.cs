@@ -60,7 +60,11 @@ public sealed partial class VehicleBase : Component.ICollisionListener
 
 	public void OnCollisionStart( Collision collision )
 	{
-		if ( !Network.IsOwner ) return;
+		// Gate on ShouldSimulate (LocalSimulation || Network.IsOwner) to match
+		// the rest of the sim. Gating on Network.IsOwner alone meant crash
+		// damage silently never fired in solo/local play (no network owner),
+		// breaking the crash→repair half of the maintenance loop.
+		if ( !ShouldSimulate ) return;
 		if ( Config == null ) return;
 
 		var impact = collision.Contact.Speed.Length;
