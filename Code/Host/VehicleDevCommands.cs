@@ -89,6 +89,7 @@ public static class VehicleDevCommands
 		Log.Info( "  vh.heal                            — fully restore nearest (fuel, engine, body, tires)" );
 		Log.Info( "  vh.cheat                           — toggle owner-side LocalSimulation (solo testing aid)" );
 		Log.Info( "  vh.diag                            — open the DiagnosticPanel for nearest vehicle" );
+		Log.Info( "  vh.hud                             — toggle the in-vehicle HUD on nearest vehicle" );
 		Log.Info( "  vh.parts                           — list .partdef assets" );
 		Log.Info( "  vh.give <partIdent> [count]        — add parts to local mechanic's inventory" );
 		Log.Info( "  vh.mechanic                        — info on toggling mechanic job (stub host = always mechanic)" );
@@ -518,6 +519,23 @@ public static class VehicleDevCommands
 		};
 		_activeDiag = panel;
 		Log.Info( $"[vh] Opened DiagnosticPanel for {v.Config?.DisplayName}. Click Close to dismiss." );
+	}
+
+	[ConCmd( "vh.hud" )]
+	public static void ToggleHud()
+	{
+		// Toggle the in-vehicle HUD on the nearest vehicle without needing a
+		// seat — handy for iterating on the HUD visuals. Normally SeatInteractor
+		// shows/hides it on driver-seat enter/exit.
+		if ( VehicleHud.Target is not null )
+		{
+			VehicleHud.Hide();
+			Log.Info( "[vh] HUD hidden." );
+			return;
+		}
+		if ( !TryRequireVehicle( out var v ) ) return;
+		VehicleHud.Show( v );
+		Log.Info( $"[vh] HUD shown for {v.Config?.DisplayName ?? v.GameObject.Name} (needs a ScreenPanel in scene)." );
 	}
 
 	[ConCmd( "vh.parts" )]

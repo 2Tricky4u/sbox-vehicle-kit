@@ -75,7 +75,7 @@ public sealed class SeatInteractor : Component
 		// Seat may vanish under us (vehicle destroyed / kicked elsewhere).
 		if ( _seat?.IsValid() != true || _seat.OccupantId != GameObject.Id )
 		{
-			if ( _seat is not null ) RestorePlayer( null );
+			if ( _seat is not null ) { RestorePlayer( null ); VehicleHud.Hide(); }
 			_seat = null;
 		}
 
@@ -132,6 +132,7 @@ public sealed class SeatInteractor : Component
 		{
 			_seat = best;
 			FreezePlayerInto( best );
+			if ( best.IsDriverSeat ) VehicleHud.Show( best.Vehicle );
 			var vn = best.Vehicle?.Config?.DisplayName ?? best.Vehicle?.GameObject.Name ?? "vehicle";
 			Log.Info( $"[SeatInteractor] Entered {(best.IsDriverSeat ? "driver" : "passenger")} seat of {vn} ({bestDist:F0}u)." );
 		}
@@ -153,6 +154,7 @@ public sealed class SeatInteractor : Component
 		seat?.Exit();
 		_seat = null;
 		RestorePlayer( seat );
+		VehicleHud.Hide();
 		Log.Info( $"[SeatInteractor] Exited seat of {v?.Config?.DisplayName ?? v?.GameObject.Name ?? "vehicle"}." );
 	}
 
@@ -234,6 +236,7 @@ public sealed class SeatInteractor : Component
 		{
 			_seat.Exit();
 			RestorePlayer( _seat );
+			VehicleHud.Hide();
 		}
 	}
 }
