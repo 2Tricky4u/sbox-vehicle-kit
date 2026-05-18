@@ -11,6 +11,12 @@ public sealed partial class VehicleBase : Component.ICollisionListener
 	[Property, Group( "Damage" )]
 	public float ImpactDamageMultiplier { get; set; } = 0.05f;
 
+	/// <summary>Tyre wear added per second per m/s of lateral slip. Default
+	/// tuned so a hard drift (~10 m/s sideways) wears a tyre 0→1 in ~30 s,
+	/// while gentle cornering (~0.5 m/s) takes many minutes.</summary>
+	[Property, Group( "Damage" ), Range( 0.0005f, 0.02f )]
+	public float TireWearPerSlipMs { get; set; } = 0.0035f;
+
 	void TickWear( float dt )
 	{
 		if ( Config == null ) return;
@@ -29,11 +35,15 @@ public sealed partial class VehicleBase : Component.ICollisionListener
 			Fuel = MathF.Max( 0f, Fuel - litres );
 		}
 
-		// Tire wear under hard cornering (TODO: refine using actual lateral slip from wheel sim)
-		if ( MathF.Abs( SteerInput ) > 0.5f && speedKmh > 30f )
+		// Tyre wear from real lateral slip (sliding scrubs rubber). Body-level
+		// slip from the kinematic solver, applied to all tyres (the arcade
+		// model has no per-wheel slip — same basis as skid detection).
+		var slipMs = LateralSlipMs;
+		if ( slipMs > 0.5f && speedKmh > 5f )
 		{
+			var wear = dt * slipMs * TireWearPerSlipMs;
 			for ( int i = 0; i < TireWear.Count; i++ )
-				TireWear[i] = MathF.Min( 1f, TireWear[i] + dt * 0.001f );
+				TireWear[i] = MathF.Min( 1f, TireWear[i] + wear );
 		}
 
 		// Battery slowly drains while engine runs (alternator ≈ break-even but not perfect).

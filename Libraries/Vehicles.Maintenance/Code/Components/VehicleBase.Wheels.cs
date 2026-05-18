@@ -119,6 +119,13 @@ public sealed partial class VehicleBase
 	/// read our velocity without going through Body.Velocity (which lags by a tick).</summary>
 	public Vector3 KinematicVelocity => _vel;
 
+	float _lateralSlipMs;
+
+	/// <summary>Absolute sideways slide of the body in m/s (how hard the car
+	/// is scrubbing). Body-level — the kinematic arcade model has no per-wheel
+	/// slip; this is the same basis as skid detection. Consumed by TickWear.</summary>
+	public float LateralSlipMs => _lateralSlipMs;
+
 	void EnsureWheelStates()
 	{
 		if ( _wheels == null || _wheels.Length != WheelAnchors.Count )
@@ -260,10 +267,12 @@ public sealed partial class VehicleBase
 		// Per-wheel grip is averaged via EffectiveWheelGrip but applied at
 		// body level (we don't have angular dynamics here, so per-wheel
 		// torque doesn't apply). Strength scales with config grip + tune.
+		_lateralSlipMs = 0f;
 		if ( groundedCount > 0 )
 		{
 			var right = WorldRotation.Right;
 			var lat = Vector3.Dot( _vel, right );
+			_lateralSlipMs = MathF.Abs( lat ) * 0.0254f;   // inches/s → m/s
 			if ( MathF.Abs( lat ) > 0.01f )
 			{
 				// Average effective grip across grounded wheels
