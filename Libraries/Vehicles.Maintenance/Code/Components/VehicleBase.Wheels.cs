@@ -25,9 +25,12 @@ namespace Vehicles.Maintenance;
 //    (the floor+walls are one MapCollider, so a low box sweep only ever sees
 //    the floor) and clamps + slides the horizontal move. Toggle WallCollision;
 //    size via BodyBoxSize (used for ray fan width / nose length / height).
-//  • No pitch/roll dynamics — body always upright, follows yaw only.
+//  • Pitch/roll: the root is tilted to the averaged wheel-ray ground normal
+//    (kinematic, not force-driven) — eased via BodyAlignSpeed, clamped by
+//    MaxBodyTiltDeg, yaw stays instant. Toggle TerrainTilt. It's an
+//    orientation match, not weight-transfer dynamics (arcade, not sim).
 //  • Per-wheel suspension forces are SUMMED into a single Z velocity change
-//    (no differential lift causing pitch/roll). Arcade-correct, sim-incorrect.
+//    (no differential lift). The visible attitude comes from the tilt above.
 public sealed partial class VehicleBase
 {
 	// ── Suspension ────────────────────────────────────────────────────
@@ -77,6 +80,24 @@ public sealed partial class VehicleBase
 
 	[Property, Group( "Steering" ), Range( 0, 8 )]
 	public int FrontWheelCount { get; set; } = 2;
+
+	// ── Terrain tilt (body pitch/roll to the ground) ─────────────────
+	/// <summary>Pitch/roll the body to the ground normal (from the wheel
+	/// rays) so it noses up ramps and leans on slopes. Off = upright,
+	/// yaw-only (the original behaviour / safe fallback).</summary>
+	[Property, Group( "Tilt" )]
+	public bool TerrainTilt { get; set; } = true;
+
+	/// <summary>How fast the body's up eases toward the terrain normal
+	/// (per second). Higher = snappier but less bump-smoothing; lower =
+	/// floatier. Steering yaw is NOT slewed, so it stays responsive.</summary>
+	[Property, Group( "Tilt" ), Range( 1, 30 )]
+	public float BodyAlignSpeed { get; set; } = 8f;
+
+	/// <summary>Max lean from world-up (degrees) — clamps steep terrain so
+	/// the car can't flip onto its roof.</summary>
+	[Property, Group( "Tilt" ), Range( 0, 60 )]
+	public float MaxBodyTiltDeg { get; set; } = 35f;
 
 	// ── Engine ────────────────────────────────────────────────────────
 	[Property, Group( "Engine" ), Range( 500, 200000 )]
@@ -217,7 +238,10 @@ public sealed partial class VehicleBase
 		_vel.z -= GRAVITY_INCHES_PER_S2 * dt;
 
 		// ── Wheel raycasts + suspension ──────────────────────────────
-		var wsDown = WorldRotation * Vector3.Down;
+		// World-down (NOT body-down): keeps ground detection independent of
+		// body attitude so terrain-tilt can't feed back into the suspension
+		// rays and oscillate. With an upright body this is identical anyway.
+		var wsDown = Vector3.Down;
 		int groundedCount = 0;
 		float totalSuspensionForce = 0f;
 		for ( int i = 0; i < WheelAnchors.Count; i++ )
@@ -351,12 +375,15 @@ public sealed partial class VehicleBase
 			_vel.z -= downForceDvMs / 0.0254f;
 		}
 
-		// ── Steering: rotate the body around its up axis ─────────────
-		// Speed-scaled so stationary cars don't spin in place; sign-scaled
-		// so reverse driving inverts steering (like a real car backing up).
-		// Yaw is NEGATED: SteerInput is +1 for D/right, but s&box
-		// Rotation.FromYaw(+) rotates CCW (left) in its X-fwd/Y-left/Z-up
-		// space, so a right input needs a negative yaw delta.
+		// ── Orientation: heading (steering) + tilt to terrain ────────
+		// Steering yaw is applied IMMEDIATELY (responsive) around the body's
+		// up; the up itself is EASED toward the averaged ground normal from
+		// the wheel rays (which are cast world-down, so attitude can't feed
+		// back into ground detection → no oscillation). Tilt is clamped.
+
+		// Steering yaw this tick — same gating as before: no spin in place,
+		// speed-scaled, reverse inverts. NEGATED (D/right → CW).
+		float yawDeg = 0f;
 		if ( groundedCount > 0 && MathF.Abs( _currentSteerAngle ) > 0.1f )
 		{
 			var fwdSpeedMs = ForwardSpeedMs();
@@ -365,9 +392,49 @@ public sealed partial class VehicleBase
 				var fullSteerMs = MathF.Max( 1f, FullSteerSpeedKmh / 3.6f );
 				var speedFactor = MathX.Clamp( MathF.Abs( fwdSpeedMs ) / fullSteerMs, 0f, 1f );
 				var dirSign = MathF.Sign( fwdSpeedMs );
-				var yawRate = -_currentSteerAngle * speedFactor * dirSign * YawRateScale;
-				WorldRotation *= Rotation.FromYaw( yawRate * dt );
+				yawDeg = -_currentSteerAngle * speedFactor * dirSign * YawRateScale * dt;
 			}
+		}
+
+		if ( !TerrainTilt )
+		{
+			// Fallback: original yaw-only, upright body.
+			if ( yawDeg != 0f )
+				WorldRotation *= Rotation.FromYaw( yawDeg );
+		}
+		else
+		{
+			// Desired up = averaged ground normal of grounded wheels.
+			var desiredUp = Vector3.Up;
+			if ( groundedCount > 0 )
+			{
+				var nSum = Vector3.Zero;
+				for ( int i = 0; i < _wheels.Length; i++ )
+					if ( _wheels[i].IsGrounded ) nSum += _wheels[i].Center.Normal;
+				if ( nSum.Length > 0.01f ) desiredUp = nSum.Normal;
+			}
+
+			// Clamp lean from world-up so steep terrain can't roll the car over.
+			var dotU = MathX.Clamp( Vector3.Dot( desiredUp, Vector3.Up ), -1f, 1f );
+			var tiltDeg = MathF.Acos( dotU ) * (180f / MathF.PI);
+			if ( tiltDeg > MaxBodyTiltDeg && tiltDeg > 0.01f )
+				desiredUp = Vector3.Lerp( Vector3.Up, desiredUp, MaxBodyTiltDeg / tiltDeg ).Normal;
+			if ( groundedCount == 0 )
+				desiredUp = Vector3.Up;   // airborne → relax to level
+
+			// Ease the up (smooths bumps); yaw stays instant.
+			var smoothUp = Vector3.Lerp( WorldRotation.Up, desiredUp,
+				MathX.Clamp( BodyAlignSpeed * dt, 0f, 1f ) );
+			if ( smoothUp.Length < 0.01f ) smoothUp = Vector3.Up;
+			smoothUp = smoothUp.Normal;
+
+			var fwd = WorldRotation.Forward;
+			if ( yawDeg != 0f )
+				fwd = Rotation.FromAxis( smoothUp, yawDeg ) * fwd;
+			fwd -= smoothUp * Vector3.Dot( fwd, smoothUp );   // keep ⟂ to up
+			if ( fwd.Length < 0.01f ) fwd = WorldRotation.Forward;
+
+			WorldRotation = Rotation.LookAt( fwd.Normal, smoothUp );
 		}
 
 		// ── The actual move — kinematic integration step ─────────────
