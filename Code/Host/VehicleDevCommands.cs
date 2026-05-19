@@ -179,16 +179,11 @@ public static class VehicleDevCommands
 			? origin + cam.WorldRotation.Forward * 200f + Vector3.Down * 50f
 			: origin;
 
-		var prefabFile = ResourceLibrary.Get<PrefabFile>( cfg.PrefabPath );
-		if ( prefabFile is null ) { Log.Warning( $"[vh] Couldn't load PrefabFile '{cfg.PrefabPath}'." ); return; }
-		var prefab = SceneUtility.GetPrefabScene( prefabFile );
-		if ( prefab is null ) { Log.Warning( $"[vh] Couldn't get prefab scene for '{cfg.PrefabPath}'." ); return; }
-
-		var go = prefab.Clone( spawnPos, Rotation.FromYaw( cam?.WorldRotation.Yaw() ?? 0f ) );
-		var vehicle = go.Components.Get<VehicleBase>();
-		if ( vehicle is not null && vehicle.Config is null ) vehicle.Config = cfg;
-		go.NetworkSpawn();
-		Log.Info( $"[vh] Spawned {cfg.DisplayName} at {spawnPos}" );
+		var spawnRot = Rotation.FromYaw( cam?.WorldRotation.Yaw() ?? 0f );
+		var vehicle = VehicleBase.Spawn( cfg, spawnPos, spawnRot );
+		if ( vehicle is not null )
+			Log.Info( $"[vh] Spawned {cfg.DisplayName} at {spawnPos}" );
+		// (VehicleBase.Spawn already logs the specific reason on failure.)
 	}
 
 	[ConCmd( "vh.kill" )]

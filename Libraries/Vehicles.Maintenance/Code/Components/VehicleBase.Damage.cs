@@ -17,6 +17,22 @@ public sealed partial class VehicleBase : Component.ICollisionListener
 	[Property, Group( "Damage" ), Range( 0.0005f, 0.02f )]
 	public float TireWearPerSlipMs { get; set; } = 0.0035f;
 
+	/// <summary>Max distance (inches) from a collision point to a wheel anchor
+	/// for the hit to count as that wheel's. Hits farther than this only do
+	/// body/engine damage.</summary>
+	[Property, Group( "Damage" ), Range( 4, 80 )]
+	public float WheelImpactRadius { get; set; } = 24f;
+
+	/// <summary>TireWear added per unit of (impact − ImpactDamageThreshold)
+	/// when a collision lands near a wheel.</summary>
+	[Property, Group( "Damage" ), Range( 0.0001f, 0.005f )]
+	public float WheelImpactWearMultiplier { get; set; } = 0.0006f;
+
+	/// <summary>Impact speed (inches/sec) at/above which a near-wheel hit
+	/// punctures that tyre outright instead of just wearing it.</summary>
+	[Property, Group( "Damage" ), Range( 200, 4000 )]
+	public float WheelPunctureImpact { get; set; } = 1200f;
+
 	void TickWear( float dt )
 	{
 		if ( Config == null ) return;
@@ -92,6 +108,42 @@ public sealed partial class VehicleBase : Component.ICollisionListener
 		}
 
 		VehicleEvents.RaiseDamage( this, PartKind.Body, damage );
+
+		// Per-wheel: a hit landing near a wheel scrubs / blows that tyre.
+		ApplyWheelImpact( collision.Contact.Point, impact );
+	}
+
+	// Maps a collision point to the nearest wheel and damages that tyre only.
+	void ApplyWheelImpact( Vector3 hitPoint, float impact )
+	{
+		if ( WheelAnchors == null || WheelAnchors.Count == 0 ) return;
+
+		int nearest = -1;
+		float bestSq = float.MaxValue;
+		for ( int i = 0; i < WheelAnchors.Count; i++ )
+		{
+			var anchor = WheelAnchors[i];
+			if ( anchor?.IsValid() != true ) continue;
+			var dSq = (anchor.WorldPosition - hitPoint).LengthSquared;
+			if ( dSq < bestSq ) { bestSq = dSq; nearest = i; }
+		}
+
+		if ( nearest < 0 || nearest >= TireWear.Count ) return;
+		if ( bestSq > WheelImpactRadius * WheelImpactRadius ) return; // hit nowhere near a wheel
+
+		// Very hard near-wheel hits blow the tyre outright.
+		if ( impact >= WheelPunctureImpact )
+		{
+			TireWear[nearest] = 1f;
+			PunctureTireRpc( nearest );
+			VehicleEvents.RaiseDamage( this, PartKind.Tire, 1f );
+			return;
+		}
+
+		var add = (impact - ImpactDamageThreshold) * WheelImpactWearMultiplier;
+		if ( add <= 0f ) return;
+		TireWear[nearest] = MathF.Min( 1f, TireWear[nearest] + add );
+		VehicleEvents.RaiseDamage( this, PartKind.Tire, add );
 	}
 
 	public void OnCollisionUpdate( Collision collision ) { }
