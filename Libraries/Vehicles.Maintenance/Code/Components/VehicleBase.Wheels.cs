@@ -21,9 +21,10 @@ namespace Vehicles.Maintenance;
 // force application is converted to direct velocity arithmetic.
 //
 // v1 limitations (documented):
-//  • Walls don't physically push back — body teleports through if you ram one.
-//    OnCollision events still fire so Damage.cs damage routing works.
-//    Proper wall response = future shapecast pass (~50 lines, deferred).
+//  • Walls: SweepHorizontal() fires horizontal feeler rays at body height
+//    (the floor+walls are one MapCollider, so a low box sweep only ever sees
+//    the floor) and clamps + slides the horizontal move. Toggle WallCollision;
+//    size via BodyBoxSize (used for ray fan width / nose length / height).
 //  • No pitch/roll dynamics — body always upright, follows yaw only.
 //  • Per-wheel suspension forces are SUMMED into a single Z velocity change
 //    (no differential lift causing pitch/roll). Arcade-correct, sim-incorrect.
@@ -95,6 +96,21 @@ public sealed partial class VehicleBase
 	/// lower = heavier / slower pickup.</summary>
 	[Property, Group( "Engine" ), Range( 1, 30 )]
 	public float MaxForwardAccelMs2 { get; set; } = 6f;
+
+	// ── Wall collision (collide-and-slide) ───────────────────────────
+	/// <summary>Stop the kinematic body passing through walls. The solver
+	/// sweeps a box along the horizontal move and slides along wall faces.
+	/// Disable to fall back to the original ghost-through behaviour.</summary>
+	[Property, Group( "Collision" )]
+	public bool WallCollision { get; set; } = true;
+
+	/// <summary>Approximate car bounding box (inches) used for the wall sweep.
+	/// Roughly length × width × height; centred a little above the origin so
+	/// it clears the floor.</summary>
+	[Property, Group( "Collision" )]
+	public Vector3 BodyBoxSize { get; set; } = new( 170f, 80f, 50f );
+
+	bool _wallTraceWarned;
 
 	// ── Internal per-wheel state ──────────────────────────────────────
 	private class WheelState
@@ -357,13 +373,100 @@ public sealed partial class VehicleBase
 		// ── The actual move — kinematic integration step ─────────────
 		// This is where the cap-bypass happens: we set the position directly
 		// rather than letting Source 2's physics integrate Body.Velocity.
-		WorldPosition += _vel * dt;
+		var delta = _vel * dt;
+		if ( WallCollision )
+		{
+			// Vertical (gravity/suspension) passes through untouched — only the
+			// horizontal move is swept so the floor never blocks driving.
+			var horiz = new Vector3( delta.x, delta.y, 0f );
+			var pos = SweepHorizontal( WorldPosition, horiz );
+			WorldPosition = pos + new Vector3( 0f, 0f, delta.z );
+		}
+		else
+		{
+			WorldPosition += delta;
+		}
 
 		// Mirror velocity for consumers that read Body.Velocity (debug log,
 		// Damage.cs speedKmh, future code).
 		try { Body.Velocity = _vel; } catch { }
 
 		DebugTick( dt, groundedCount, engineForceMag );
+	}
+
+	// Wall blocking via horizontal "feeler" rays at body height.
+	//
+	// Why rays, not a box sweep: the level's floor and walls are usually ONE
+	// shared MapCollider. A low box sweep keeps hitting the floor first (up
+	// normal) and we'd never see the wall. Horizontal rays fired from mid-body
+	// height physically cannot touch the floor, so they isolate walls cleanly.
+	// We fan 3 rays across the car width in the move direction; if the nearest
+	// wall (near-vertical normal) is closer than the car can travel, clamp the
+	// move, kill the into-wall velocity, and slide the remainder along the face.
+	Vector3 SweepHorizontal( Vector3 pos, Vector3 horiz )
+	{
+		var dist = horiz.Length;
+		if ( dist < 0.05f ) return pos;
+
+		try
+		{
+			var dir = horiz / dist;
+			var halfLen = BodyBoxSize.x * 0.5f;     // centre → nose
+			var halfWid = BodyBoxSize.y * 0.5f;     // centre → side
+			const float skin = 2.0f;
+
+			var feeler = pos + Vector3.Up * (BodyBoxSize.z * 0.5f); // above the ground
+			var right = Vector3.Cross( Vector3.Up, dir ).Normal;    // ⟂ to travel
+			var rayLen = dist + halfLen + skin;
+
+			float nearest = float.MaxValue;
+			Vector3 wallN = default;
+			for ( int s = -1; s <= 1; s++ )
+			{
+				var start = feeler + right * (halfWid * s);
+				var tr = Scene.Trace.Ray( start, start + dir * rayLen )
+					.IgnoreGameObjectHierarchy( GameObject )
+					.Run();
+				if ( !tr.Hit ) continue;
+				if ( MathF.Abs( tr.Normal.z ) > 0.7f ) continue;     // floor/ramp, not a wall
+				if ( tr.Distance < nearest )
+				{
+					nearest = tr.Distance;
+					wallN = tr.Normal.WithZ( 0f ).Normal;
+				}
+			}
+
+			if ( nearest == float.MaxValue )            // no wall ahead → full move
+				return pos + horiz;
+
+			// How far the car centre may advance before its nose meets the wall.
+			var allowed = MathX.Clamp( nearest - halfLen - skin, 0f, dist );
+			pos += dir * allowed;
+
+			if ( wallN.Length >= 0.01f )
+			{
+				// Slide the unused part of the move along the wall face.
+				var remaining = horiz - dir * allowed;
+				var slide = remaining - wallN * Vector3.Dot( remaining, wallN );
+				pos += slide;
+
+				// Cancel only the velocity going INTO the wall (keep tangential
+				// + any away-from-wall component, so you can reverse off it).
+				var into = Vector3.Dot( _vel, wallN );
+				if ( into < 0f ) _vel -= wallN * into;
+			}
+
+			return pos;
+		}
+		catch ( System.Exception e )
+		{
+			if ( !_wallTraceWarned )
+			{
+				_wallTraceWarned = true;
+				Log.Warning( $"[Vehicles.Maintenance] Wall feeler unavailable in this s&box build ({e.Message}); set WallCollision=false to silence. Falling back to ghost-through." );
+			}
+			return pos + horiz;
+		}
 	}
 
 	void ProcessWheelKinematic( int i, GameObject anchor, Vector3 wsDown, float dt, ref float totalSuspensionForce )
