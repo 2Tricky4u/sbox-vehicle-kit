@@ -711,6 +711,8 @@
           "SteerFallRate": 12,
           "SteerRiseRate": 8,
           "SteerSpeed": 6,
+          "StuckDetectSeconds": 3,
+          "StuckUpThreshold": 0.3,
           "SuspensionDamping": 6000,
           "SuspensionLengthRelaxed": 60,
           "SuspensionStiffness": 80000,
@@ -718,6 +720,7 @@
           "ThrottleFallRate": 8,
           "ThrottleRiseRate": 6,
           "TireWearPerSlipMs": 0.0035,
+          "TorqueToForceScale": 60,
           "Tune": null,
           "WallCollision": true,
           "WheelAnchors": [
@@ -1073,6 +1076,8 @@
           "SteerFallRate": 12,
           "SteerRiseRate": 8,
           "SteerSpeed": 6,
+          "StuckDetectSeconds": 3,
+          "StuckUpThreshold": 0.3,
           "SuspensionDamping": 3000,
           "SuspensionLengthRelaxed": 25,
           "SuspensionStiffness": 30000,
@@ -1080,6 +1085,7 @@
           "ThrottleFallRate": 8,
           "ThrottleRiseRate": 6,
           "TireWearPerSlipMs": 0.0035,
+          "TorqueToForceScale": 60,
           "Tune": null,
           "WallCollision": true,
           "WheelAnchors": [
@@ -1315,6 +1321,7 @@
               "OnComponentFixedUpdate": null,
               "OnComponentStart": null,
               "OnComponentUpdate": null,
+              "ParentOccupantToSeat": true,
               "Vehicle": {
                 "_type": "component",
                 "component_id": "4917de2e-92cd-4c94-9e36-6feaa934ca0d",
@@ -1557,6 +1564,18 @@
           "OnComponentStart": null,
           "OnComponentUpdate": null,
           "UseRange": 100
+        },
+        {
+          "__type": "Sandbox.CarMaintenance.PumpInteractor",
+          "__guid": "efe0526b-5ae5-4d6b-9ef4-6c7e74c9c64f",
+          "__enabled": true,
+          "Flags": 0,
+          "OnComponentDestroy": null,
+          "OnComponentDisabled": null,
+          "OnComponentEnabled": null,
+          "OnComponentFixedUpdate": null,
+          "OnComponentStart": null,
+          "OnComponentUpdate": null
         }
       ],
       "Children": [

@@ -16,22 +16,50 @@ public sealed class VehiclesMaintenanceBootstrap : Component
 
 	protected override void OnAwake()
 	{
-		if ( VehicleHost.Current is not null )
-		{
-			Log.Info( "[Bootstrap] VehicleHost already registered — skipping." );
-			return;
-		}
+		if ( VehicleHost.Current is null )
+			VehicleHost.Register( new CarMaintenanceVehicleHost() );
+		else
+			Log.Info( "[Bootstrap] VehicleHost already registered — skipping registration." );
+	}
 
-		VehicleHost.Register( new CarMaintenanceVehicleHost() );
+	// Instance handlers subscribed per-enable and unsubscribed per-disable:
+	// the VehicleEvents subscriber list is static and outlives play sessions,
+	// so lambda subscriptions accumulate and hotload turns them into throwing
+	// error stubs. Named instance methods paired with -= stay clean.
+	protected override void OnEnabled()
+	{
+		if ( !LogEvents ) return;
+		VehicleEvents.OnVehicleSpawned += LogSpawned;
+		VehicleEvents.OnVehicleDestroyed += LogDestroyed;
+		VehicleEvents.OnRefuel += LogRefuel;
+		VehicleEvents.OnRepair += LogRepair;
+		VehicleEvents.OnDamage += LogDamage;
+		VehicleEvents.OnVehicleWrecked += LogWrecked;
+		VehicleEvents.OnVehicleStuck += LogStuck;
+	}
 
-		if ( LogEvents )
-		{
-			VehicleEvents.OnVehicleSpawned   += v => Log.Info( $"[Vehicles] Spawned   {NameOf( v )}" );
-			VehicleEvents.OnVehicleDestroyed += v => Log.Info( $"[Vehicles] Destroyed {NameOf( v )}" );
-			VehicleEvents.OnRefuel           += ( v, l )    => Log.Info( $"[Vehicles] Refuel +{l:F1}L  on {NameOf( v )}" );
-			VehicleEvents.OnRepair           += ( v, p, a ) => Log.Info( $"[Vehicles] Repair {p,-7} +{a:F1}  on {NameOf( v )}" );
-			VehicleEvents.OnDamage           += ( v, p, a ) => Log.Info( $"[Vehicles] Damage {p,-7} -{a:F1}  on {NameOf( v )}" );
-		}
+	protected override void OnDisabled()
+	{
+		VehicleEvents.OnVehicleSpawned -= LogSpawned;
+		VehicleEvents.OnVehicleDestroyed -= LogDestroyed;
+		VehicleEvents.OnRefuel -= LogRefuel;
+		VehicleEvents.OnRepair -= LogRepair;
+		VehicleEvents.OnDamage -= LogDamage;
+		VehicleEvents.OnVehicleWrecked -= LogWrecked;
+		VehicleEvents.OnVehicleStuck -= LogStuck;
+	}
+
+	void LogSpawned( VehicleBase v ) => Log.Info( $"[Vehicles] Spawned   {NameOf( v )}" );
+	void LogDestroyed( VehicleBase v ) => Log.Info( $"[Vehicles] Destroyed {NameOf( v )}" );
+	void LogRefuel( VehicleBase v, float l ) => Log.Info( $"[Vehicles] Refuel +{l:F1}L  on {NameOf( v )}" );
+	void LogRepair( VehicleBase v, PartKind p, float a ) => Log.Info( $"[Vehicles] Repair {p,-7} +{a:F1}  on {NameOf( v )}" );
+	void LogDamage( VehicleBase v, PartKind p, float a ) => Log.Info( $"[Vehicles] Damage {p,-7} -{a:F1}  on {NameOf( v )}" );
+	void LogWrecked( VehicleBase v ) => Log.Info( $"[Vehicles] WRECKED   {NameOf( v )} — repair body above {VehicleBase.WreckRecoveryPct:P0} to recover" );
+
+	void LogStuck( VehicleBase v )
+	{
+		Log.Info( $"[Vehicles] STUCK     {NameOf( v )} — flipped; vh.unstuck (or RecoverUprightRpc) rights it" );
+		Toast.Show( "Vehicle stuck — use vh.unstuck to flip it back" );
 	}
 
 	static string NameOf( VehicleBase v ) => v?.Config?.DisplayName ?? "(no config)";

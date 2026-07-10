@@ -13,6 +13,15 @@ public sealed partial class VehicleBase
 	[Sync] public float BatteryCharge { get; set; }   // 0..BatteryMaxCharge
 	[Sync] public float OilLevel { get; set; }        // 0..OilMaxLevel
 
+	/// <summary>Body health hit zero — engine dead and won't crank until the
+	/// body is repaired above <see cref="WreckRecoveryPct"/>. Set by
+	/// TickSystems, cleared by <see cref="RepairRpc"/>.</summary>
+	[Sync] public bool IsWrecked { get; set; }
+
+	/// <summary>Body health fraction required for a Body repair to clear
+	/// <see cref="IsWrecked"/>.</summary>
+	public const float WreckRecoveryPct = 0.25f;
+
 	/// <summary>Battery scale max (0..N). Hardcoded for v1; promote to VehicleConfig
 	/// once the schema unlocks for v1.1.</summary>
 	public const float BatteryMaxCharge = 100f;
@@ -101,6 +110,9 @@ public sealed partial class VehicleBase
 				break;
 			case PartKind.Body:
 				BodyHealth = MathF.Min( BodyHealth + amount, Config.BodyMaxHealth );
+				// A body repair past the recovery threshold un-wrecks the car.
+				if ( IsWrecked && BodyHealthPct > WreckRecoveryPct )
+					IsWrecked = false;
 				break;
 			case PartKind.Tire:
 				if ( wheelIndex >= 0 && wheelIndex < TireWear.Count )

@@ -29,6 +29,12 @@ public sealed class VehicleSeat : Component
 	/// v1 (multiple driver seats would fight over HasDriver).</summary>
 	[Property] public bool IsDriverSeat { get; set; } = false;
 
+	/// <summary>Parent the occupant GameObject to this seat while seated so it
+	/// rides along (passengers stay with a moving car). The occupant's original
+	/// parent is restored on exit. Disable for gamemodes that position pawns
+	/// themselves.</summary>
+	[Property] public bool ParentOccupantToSeat { get; set; } = true;
+
 	/// <summary>Id of the occupying GameObject. <c>Guid.Empty</c> = empty.
 	/// Synced so every client agrees on occupancy.</summary>
 	[Sync] public Guid OccupantId { get; set; } = Guid.Empty;
@@ -74,6 +80,8 @@ public sealed class VehicleSeat : Component
 			TryAssignVehicleOwnership( occupantId );
 		}
 
+		AttachOccupant( occupantId );
+
 		if ( Vehicle is not null )
 			VehicleEvents.RaiseSeatEntered( Vehicle, this );
 	}
@@ -81,6 +89,8 @@ public sealed class VehicleSeat : Component
 	[Rpc.Owner]
 	void ExitRpc()
 	{
+		DetachOccupant( OccupantId );
+
 		OccupantId = Guid.Empty;
 		Occupant = null;
 
@@ -89,6 +99,49 @@ public sealed class VehicleSeat : Component
 
 		if ( Vehicle is not null )
 			VehicleEvents.RaiseSeatExited( Vehicle, this );
+	}
+
+	// Ride-along: parent the occupant under the seat (world position kept) so
+	// passengers move with the car; restore on exit and place them beside the
+	// vehicle. Best-effort — pawn setups vary, so failures only warn.
+	void AttachOccupant( Guid occupantId )
+	{
+		if ( !ParentOccupantToSeat ) return;
+		try
+		{
+			var occ = Scene.Directory.FindByGuid( occupantId );
+			if ( occ?.IsValid() != true ) return;
+			occ.SetParent( GameObject, keepWorldPosition: true );
+			occ.WorldPosition = WorldPosition;
+		}
+		catch ( Exception e )
+		{
+			Log.Warning( $"[VehicleSeat] attach skipped: {e.Message}" );
+		}
+	}
+
+	void DetachOccupant( Guid occupantId )
+	{
+		if ( !ParentOccupantToSeat ) return;
+		try
+		{
+			var occ = Scene.Directory.FindByGuid( occupantId );
+			if ( occ?.IsValid() != true ) return;
+			if ( occ.Parent == GameObject )
+			{
+				occ.SetParent( null, keepWorldPosition: true );
+				var v = Vehicle;
+				if ( v?.IsValid() == true )
+				{
+					occ.WorldPosition = WorldPosition + v.WorldRotation.Left * 70f + Vector3.Up * 10f;
+					occ.WorldRotation = Rotation.FromYaw( v.WorldRotation.Yaw() );
+				}
+			}
+		}
+		catch ( Exception e )
+		{
+			Log.Warning( $"[VehicleSeat] detach skipped: {e.Message}" );
+		}
 	}
 
 	// In a networked session the entering player must own the vehicle so their
@@ -113,10 +166,12 @@ public sealed class VehicleSeat : Component
 	}
 
 	// If the seat is torn down while occupied (vehicle destroyed, hotload),
-	// don't leave the driver gate stuck on.
+	// free the occupant and don't leave the driver gate stuck on.
 	protected override void OnDestroy()
 	{
-		if ( IsOccupied && IsDriverSeat && Vehicle is not null )
+		if ( !IsOccupied ) return;
+		DetachOccupant( OccupantId );
+		if ( IsDriverSeat && Vehicle is not null )
 			Vehicle.HasDriver = false;
 	}
 }

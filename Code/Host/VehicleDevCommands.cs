@@ -84,6 +84,8 @@ public static class VehicleDevCommands
 		Log.Info( "  vh.horn                            — honk" );
 		Log.Info( "  vh.flip                            — flip/recover nearest (zeroes velocity, levels rotation)" );
 		Log.Info( "  vh.push [kmh=60]                   — launch nearest along its facing (crash testing)" );
+		Log.Info( "  vh.wreck                           — total the nearest vehicle (body → 0, engine dead)" );
+		Log.Info( "  vh.unstuck                         — right + recover the nearest vehicle" );
 		Log.Info( "  vh.debug                           — toggle DebugLog on nearest" );
 		Log.Info( "  vh.debugdraw [seconds]             — draw wheel rays + forward arrow + collider (0=stop)" );
 		Log.Info( "  vh.scene                           — dump GameObject tree + setup checklist (diagnose E/seat issues)" );
@@ -350,6 +352,22 @@ public static class VehicleDevCommands
 		var speedInches = speedKmh / 0.09144f;
 		v.SetKinematicVelocity( v.WorldRotation.Forward * speedInches );
 		Log.Info( $"[vh] Pushed {speedKmh:F0} km/h ({speedInches:F0} in/s) along facing." );
+	}
+
+	[ConCmd( "vh.wreck" )]
+	public static void Wreck()
+	{
+		if ( !TryRequireVehicle( out var v ) ) return;
+		v.DamageRpc( PartKind.Body, 9999f );
+		Log.Info( $"[vh] Wrecked (body → 0). IsWrecked={v.IsWrecked} (transitions next tick). Repair body above {VehicleBase.WreckRecoveryPct:P0} to recover." );
+	}
+
+	[ConCmd( "vh.unstuck" )]
+	public static void Unstuck()
+	{
+		if ( !TryRequireVehicle( out var v ) ) return;
+		v.RecoverUprightRpc();
+		Log.Info( "[vh] Recovery: righted, lifted, velocity zeroed." );
 	}
 
 	[ConCmd( "vh.debug" )]

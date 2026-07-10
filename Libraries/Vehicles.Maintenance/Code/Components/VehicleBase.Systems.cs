@@ -20,7 +20,7 @@ public sealed partial class VehicleBase
 
 	/// <summary>The unified gate: engine is mechanically OK AND switched on.
 	/// Use this everywhere instead of CanStartEngine when checking "should the engine produce power right now".</summary>
-	public bool IsEngineRunning => CanStartEngine && EngineOn;
+	public bool IsEngineRunning => CanStartEngine && EngineOn && !IsWrecked;
 
 	// ── Engine on/off ─────────────────────────────────────────────────
 	// Events are NOT raised here — TickSystems' edge detection is the single
@@ -28,9 +28,9 @@ public sealed partial class VehicleBase
 	[Rpc.Owner]
 	public void ToggleEngineRpc()
 	{
-		// A dead engine (no fuel / health / battery) refuses to crank instead
-		// of flicking on for one frame and immediately stalling.
-		if ( !EngineOn && !CanStartEngine ) return;
+		// A dead engine (no fuel / health / battery) or a wreck refuses to
+		// crank instead of flicking on for one frame and immediately stalling.
+		if ( !EngineOn && (!CanStartEngine || IsWrecked) ) return;
 		EngineOn = !EngineOn;
 	}
 
@@ -80,9 +80,17 @@ public sealed partial class VehicleBase
 	// ── Per-tick: keep system state in sync with maintenance state ────
 	void TickSystems()
 	{
-		// Stall when the engine can no longer run (health/fuel/battery), then
-		// pure edge detection — the ONLY place start/stop events are raised.
-		if ( EngineOn && !CanStartEngine )
+		// Wreck transition: body health at zero totals the car.
+		if ( !IsWrecked && Config is not null && BodyHealth <= 0f )
+		{
+			IsWrecked = true;
+			EngineOn = false;
+			VehicleEvents.RaiseWrecked( this );
+		}
+
+		// Stall when the engine can no longer run (health/fuel/battery/wreck),
+		// then pure edge detection — the ONLY place start/stop events are raised.
+		if ( EngineOn && (!CanStartEngine || IsWrecked) )
 			EngineOn = false;
 
 		if ( EngineOn && !_prevEngineOn )

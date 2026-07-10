@@ -67,6 +67,7 @@ public sealed partial class VehicleBase : Component
 
 	protected override void OnDestroy()
 	{
+		EjectAllSeats();
 		DebugUnsubscribe();
 		SoundUnsubscribe();
 		VehicleEvents.RaiseDestroyed( this );
@@ -78,6 +79,7 @@ public sealed partial class VehicleBase : Component
 		TickInput();
 		TickWear( Time.Delta );
 		TickSystems();
+		TickRecovery( Time.Delta );
 		TickSound( Time.Delta );
 	}
 

@@ -80,10 +80,16 @@ public sealed class SeatInteractor : Component
 
 	protected override void OnUpdate()
 	{
-		// Seat may vanish under us (vehicle destroyed / kicked elsewhere).
+		// Seat may vanish under us (vehicle destroyed / wreck-eject / kicked).
+		// Pass the seat when it still exists so the restore can reposition the
+		// player beside the car instead of wherever the frozen body was left.
 		if ( _seat?.IsValid() != true || _seat.OccupantId != GameObject.Id )
 		{
-			if ( _seat is not null ) { RestorePlayer( null ); VehicleHud.Hide(); }
+			if ( _seat is not null )
+			{
+				RestorePlayer( _seat.IsValid() ? _seat : null );
+				VehicleHud.Hide();
+			}
 			_seat = null;
 		}
 
