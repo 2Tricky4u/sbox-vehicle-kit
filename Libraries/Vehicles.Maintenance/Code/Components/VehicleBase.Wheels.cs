@@ -264,12 +264,17 @@ public sealed partial class VehicleBase
 		var wsDown = Vector3.Down;
 		int groundedCount = 0;
 		float totalSuspensionForce = 0f;
+		float maxCompression = 0f;
 		for ( int i = 0; i < WheelAnchors.Count; i++ )
 		{
 			var anchor = WheelAnchors[i];
 			if ( anchor?.IsValid() != true ) continue;
 			ProcessWheelKinematic( i, anchor, wsDown, dt, ref totalSuspensionForce );
-			if ( _wheels[i].IsGrounded ) groundedCount++;
+			if ( _wheels[i].IsGrounded )
+			{
+				groundedCount++;
+				maxCompression = MathF.Max( maxCompression, _wheels[i].Compression );
+			}
 		}
 
 		// Landing impact: convert remembered fall speed into damage on the
@@ -289,10 +294,22 @@ public sealed partial class VehicleBase
 
 		// Sum of per-wheel suspension forces → single upward velocity change.
 		// Force is in Newtons. Δv = F·dt / m, then convert m/s → inches/sec.
+		// Clamped to ±6 g: holding the car up needs 1 g and bumps a few more,
+		// but a fully-compressed spring (interpenetrating spawn/teleport) must
+		// bottom out instead of accumulating a catapult launch.
 		if ( groundedCount > 0 )
 		{
 			var suspensionDvMs = totalSuspensionForce * dt / VehicleMass;
+			var maxDvMs = 6f * 9.81f * dt;
+			suspensionDvMs = MathX.Clamp( suspensionDvMs, -maxDvMs, maxDvMs );
 			_vel.z += suspensionDvMs / 0.0254f;
+
+			// Bump stop: the spring is clamped, but the GROUND is rigid. If a
+			// wheel is (near) fully compressed and we're still moving down, the
+			// chassis has hit the stops — kill the remaining fall instead of
+			// sinking through the floor while the clamped spring catches up.
+			if ( maxCompression >= 0.98f && _vel.z < 0f )
+				_vel.z = 0f;
 		}
 
 		// ── Engine drive (forward, only when grounded + engine running) ──
@@ -481,10 +498,12 @@ public sealed partial class VehicleBase
 		// rather than letting Source 2's physics integrate Body.Velocity.
 		var delta = _vel * dt;
 
-		// Vertical CCD: a fall faster than one wheel radius per tick can step
-		// past the suspension rays and tunnel through thin floors. Clamp the
-		// vertical move against a downward ray and treat the stop as a landing.
-		if ( delta.z < -WheelRadius )
+		// Vertical CCD: a fast fall can step past the suspension rays and
+		// tunnel through thin floors. Clamp the vertical move against a
+		// downward ray and treat the stop as a landing. Armed at half a wheel
+		// radius per tick — the previous full-radius trigger left a band of
+		// fall speeds that neither the (clamped) suspension nor the CCD caught.
+		if ( delta.z < -WheelRadius * 0.5f )
 		{
 			try
 			{

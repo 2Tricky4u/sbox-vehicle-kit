@@ -43,6 +43,26 @@ public sealed partial class VehicleBase
 			return null;
 		}
 
+		// Ground-snap: spawning at/below wheel-rest height interpenetrates the
+		// suspension rays, and a fully-compressed spring can catapult the car
+		// (observed: a camera-height spawn launched a hatchback onto a roof).
+		// Place the root comfortably above the ground and let it settle the
+		// few inches down — that drop is far below LandingDamageThreshold.
+		var scene = Game.ActiveScene;
+		if ( scene is not null )
+		{
+			try
+			{
+				var probe = scene.Trace
+					.Ray( pos + Vector3.Up * 64f, pos + Vector3.Down * 512f )
+					.WithoutTags( "player" )
+					.Run();
+				if ( probe.Hit )
+					pos = probe.HitPosition + Vector3.Up * 40f;
+			}
+			catch { /* trace API mismatch — keep caller position */ }
+		}
+
 		var go = prefab.Clone( pos, rot );
 
 		// Prefab root normally carries the VehicleBase; fall back to children.

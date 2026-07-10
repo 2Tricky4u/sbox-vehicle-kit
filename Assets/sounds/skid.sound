@@ -38,7 +38,7 @@
     "Id": "00000000-0000-0000-0000-000000000000"
   },
   "__references": [
-    "opensound.car_driving_tires_ext"
+    "opensound.car_driving_tires_ext#294329"
   ],
   "__version": 1
 }
