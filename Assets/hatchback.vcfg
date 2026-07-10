@@ -1,0 +1,48 @@
+{
+  "DisplayName": "Hatchback",
+  "ModelPath": null,
+  "PrefabPath": null,
+  "MaxSpeedKmh": 110,
+  "MassKg": 950,
+  "Grip": 0.8,
+  "EngineTorqueNm": 90,
+  "BrakeStrength": 0.9,
+  "AccelerationCurve": [
+    {
+      "x": 0,
+      "y": 1,
+      "in": 0,
+      "out": 0,
+      "mode": "Mirrored"
+    },
+    {
+      "x": 0.4,
+      "y": 0.75,
+      "in": 0,
+      "out": 0,
+      "mode": "Mirrored"
+    },
+    {
+      "x": 1,
+      "y": 0,
+      "in": 0,
+      "out": 0,
+      "mode": "Mirrored"
+    }
+  ],
+  "WheelCount": 4,
+  "SeatCount": 2,
+  "CargoCapacityKg": 0,
+  "FuelCapacityLitres": 35,
+  "FuelConsumptionLPer100Km": 5.5,
+  "EngineMaxHealth": 100,
+  "BodyMaxHealth": 90,
+  "EngineSoundPath": null,
+  "HornSoundPath": null,
+  "PaintTintable": true,
+  "Tags": [ "starter", "civilian" ],
+  "PurchasePrice": 2500,
+  "RepairBaseCost": 30,
+  "__references": [],
+  "__version": 0
+}

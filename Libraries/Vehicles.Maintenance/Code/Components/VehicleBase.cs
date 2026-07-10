@@ -45,6 +45,12 @@ public sealed partial class VehicleBase : Component
 		OilLevel = OilMaxLevel;
 		EnsureTireWearList();
 
+		// Schema sanity: Config.SeatCount is the data-side seat contract; the
+		// prefab's SeatAnchors are the physical seats. Only checked when anchors
+		// are assigned — legacy scenes place VehicleSeat children directly.
+		if ( SeatAnchors is { Count: > 0 } && SeatAnchors.Count != Config.SeatCount )
+			Log.Warning( $"[Vehicles.Maintenance] {GameObject.Name}: Config.SeatCount={Config.SeatCount} but {SeatAnchors.Count} SeatAnchors are assigned." );
+
 		// Kinematic mode: take movement off Source 2's hands so its contact
 		// damping never caps our velocity. We integrate manually in
 		// VehicleBase.Wheels.cs (SetupKinematicIfNeeded is a lazy fallback

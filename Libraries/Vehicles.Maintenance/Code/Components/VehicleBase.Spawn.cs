@@ -23,7 +23,9 @@ public sealed partial class VehicleBase
 		}
 		if ( string.IsNullOrEmpty( cfg.PrefabPath ) )
 		{
-			Log.Warning( $"[Vehicles.Maintenance] Spawn: '{cfg.DisplayName}' has no PrefabPath set." );
+			Log.Warning( string.IsNullOrEmpty( cfg.ModelPath )
+				? $"[Vehicles.Maintenance] Spawn: '{cfg.DisplayName}' has no PrefabPath set."
+				: $"[Vehicles.Maintenance] Spawn: '{cfg.DisplayName}' has a ModelPath but no PrefabPath — a model alone can't spawn. Build a prefab (VehicleBase + collider + wheel anchors + seats) and set PrefabPath." );
 			return null;
 		}
 

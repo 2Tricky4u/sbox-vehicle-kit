@@ -56,8 +56,25 @@ public sealed partial class VehicleBase
 	}
 
 	// ── Effective values consumed by Wheels.cs ────────────────────────
+
+	/// <summary>Newtons of drive force per Nm of Config.EngineTorqueNm.
+	/// Calibrated so the default 250 Nm sedan matches the old
+	/// MaxEngineForce=15000 N default. This makes engine power DATA-DRIVEN:
+	/// two .vcfg files with different torque genuinely drive differently.</summary>
+	[Property, Group( "Engine" ), Range( 10, 200 )]
+	public float TorqueToForceScale { get; set; } = 60f;
+
+	/// <summary>Base drive force in Newtons before tune/health. Prefers
+	/// Config.EngineTorqueNm × TorqueToForceScale; the component's
+	/// MaxEngineForce property is the fallback for configs with no torque
+	/// (and stays the per-prefab override knob: set torque to 0 to use it).</summary>
+	public float BaseEngineForce =>
+		(Config?.EngineTorqueNm ?? 0f) > 0f
+			? Config.EngineTorqueNm * TorqueToForceScale
+			: MaxEngineForce;
+
 	/// <summary>Engine force in Newtons, after tune + engine health.</summary>
-	public float EffectiveEnginePower => MaxEngineForce * MEnginePower * EngineHealthFactor;
+	public float EffectiveEnginePower => BaseEngineForce * MEnginePower * EngineHealthFactor;
 
 	/// <summary>Brake force coefficient, after tune.</summary>
 	public float EffectiveBrake => BrakeForce * MBrake;

@@ -71,6 +71,10 @@ public sealed class RepairTool : Component
 				Log.Warning( "[RepairTool] Mechanic job required" );
 				Toast.Show( "Mechanic job required" );
 				break;
+			case RepairOutcome.CantAfford:
+				Log.Warning( "[RepairTool] Can't afford the repair cost" );
+				Toast.Show( "Can't afford the repair cost" );
+				break;
 			default:
 				Log.Info( $"[RepairTool] Repair failed: {res.Outcome}" );
 				Toast.Show( $"Can't repair: {res.Outcome}" );

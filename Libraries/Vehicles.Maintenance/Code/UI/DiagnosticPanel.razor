@@ -139,6 +139,7 @@
 		RepairOutcome.NoPartDef => $"No PartDefinition for {r.Part}",
 		RepairOutcome.NoInventory => "No inventory",
 		RepairOutcome.OutOfParts => $"Out of {r.Def?.DisplayName}",
+		RepairOutcome.CantAfford => "Can't afford the repair cost",
 		RepairOutcome.CustomActionRan => $"Custom {r.Part} repair invoked",
 		RepairOutcome.Repaired => r.WheelIndex >= 0
 			? $"Repaired Tire {r.WheelIndex + 1} (+{r.Def.RepairAmount:F0}, paid ${r.Payout})"

@@ -12,6 +12,7 @@ public enum RepairOutcome
 	NoPartDef,
 	NoInventory,
 	OutOfParts,
+	CantAfford,
 	CustomActionRan,
 	Repaired,
 }
@@ -74,6 +75,15 @@ public static class RepairFlow
 
 		var inv = VehicleHost.Current.GetInventory( mechanic );
 		if ( inv is null ) return R( RepairOutcome.NoInventory );
+		if ( inv.CountOf( def ) < 1 ) return R( RepairOutcome.OutOfParts );
+
+		// Materials/labour base cost from the vehicle's config — charged before
+		// the part is consumed so a failed charge doesn't eat the part.
+		var baseCost = vehicle.Config?.RepairBaseCost ?? 0;
+		if ( baseCost > 0 && !VehicleHost.Current.TryCharge( mechanic, baseCost,
+				wheelIndex >= 0 ? $"Repair base cost (tire {wheelIndex})" : $"Repair base cost ({part})" ) )
+			return R( RepairOutcome.CantAfford );
+
 		if ( !inv.TryConsume( def, 1 ) ) return R( RepairOutcome.OutOfParts );
 
 		vehicle.RepairRpc( part, def.RepairAmount, wheelIndex );

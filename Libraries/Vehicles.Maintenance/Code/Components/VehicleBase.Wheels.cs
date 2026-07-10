@@ -239,7 +239,17 @@ public sealed partial class VehicleBase
 			var ratio = MathX.Clamp( MathF.Abs( currentSpeedMs ) / targetMax, 0f, 1f );
 			// Pushing against current motion (reversals) gets full force.
 			var sameDir = MathF.Sign( currentSpeedMs ) == MathF.Sign( ThrottleInput );
-			var taper = sameDir ? (1f - ratio * ratio) : 1f;
+			// Config.AccelerationCurve shapes the power band per car (evaluated
+			// over speed/topSpeed); its default frames (1 → 0.7 → 0) closely
+			// match the old hardcoded 1−ratio² taper. Floored so a malformed
+			// curve can't make a car undrivable.
+			float taper = 1f;
+			if ( sameDir )
+			{
+				taper = Config is not null
+					? MathF.Max( 0.02f, Config.AccelerationCurve.Evaluate( ratio ) )
+					: 1f - ratio * ratio;
+			}
 			engineForceMag = ThrottleInput * EffectiveEnginePower * GearTorqueMultiplier * taper;
 		}
 
@@ -293,7 +303,11 @@ public sealed partial class VehicleBase
 			// Cap longitudinal acceleration — the kinematic solver applies the
 			// full engine force (Source 2 no longer absorbs it), so without
 			// this the car gains speed instantly and feels weightless.
-			var maxDvMs = MaxForwardAccelMs2 * dt;
+			// The cap itself is power-derived: a weak/heavy car sits below the
+			// prefab ceiling naturally, so .vcfg torque differences stay visible
+			// instead of every car pinning to the same clamp.
+			var powerCapMs2 = BaseEngineForce / (VehicleMass * 1.4f);
+			var maxDvMs = MathF.Min( MaxForwardAccelMs2, powerCapMs2 ) * dt;
 			deltaVms = MathX.Clamp( deltaVms, -maxDvMs, maxDvMs );
 			_vel += fwd * (deltaVms / 0.0254f);
 		}

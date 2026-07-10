@@ -35,17 +35,6 @@ public sealed partial class VehicleBase
 	/// See Damage.cs TickWear for the scaling.</summary>
 	public bool IsLowOil => OilLevel < OilMaxLevel * 0.2f;
 
-	/// <summary>Effective torque after maintenance penalties.</summary>
-	public float EffectiveTorque
-	{
-		get
-		{
-			if ( Config is null || !CanStartEngine ) return 0f;
-			var health01 = MathF.Min( 1f, EngineHealth / MathF.Max( 1f, Config.EngineMaxHealth * 0.5f ) );
-			return Config.EngineTorqueNm * health01;
-		}
-	}
-
 	void EnsureTireWearList()
 	{
 		// Size to whichever is larger: the sim iterates WheelAnchors while wear
