@@ -4,7 +4,7 @@
 @using System.Linq
 @namespace Vehicles.Maintenance
 
-<root class="racing-hud @(Visible ? "" : "hidden")">
+<root class="racing-hud @(Visible ? "" : "hidden") @(Visible && Target.IsWrecked ? "wrecked" : "")">
 	@if ( Visible )
 	{
 		var v = Target;
@@ -21,9 +21,10 @@
 				<div class="dial">
 					@for ( int s = 0; s <= maxKmh; s += step )
 					{
-						var a = Sweep( s / (float)maxKmh );
+						var frac = s / (float)maxKmh;
+						var a = Sweep( frac );
 						var major = (s % (step * 2) == 0);
-						<div class="tick @(major ? "major" : "")"
+						<div class="tick @(major ? "major" : "") @(frac >= 0.85f ? "redline" : "")"
 							 style="left: @(PX( a, RTick ))px; top: @(PY( a, RTick ))px; transform: rotate(@(a)deg);"></div>
 					}
 					@for ( int s = 0; s <= maxKmh; s += step * 2 )
@@ -46,22 +47,15 @@
 
 		<!-- fuel gauge: bottom-left -->
 		<div class="left-cluster">
-				<!-- automotive fuel gauge -->
 				<div class="fuelgauge">
 					@{
 						var fp = MathX.Clamp( v.FuelPct, 0f, 1f );
 						var fAng = FuelSweep( fp );
 					}
 
-					<!-- gas-pump watermark (CSS-drawn, behind everything) -->
-					<div class="fuel-logo">
-						<div class="pbody">
-							<div class="pscreen"></div>
-						</div>
-						<div class="pbase"></div>
-						<div class="pnozzle"></div>
-						<div class="phose"></div>
-					</div>
+					<!-- gas-pump watermark behind the ticks -->
+					<i class="fglyph">local_gas_station</i>
+
 					@for ( int q = 0; q <= 4; q++ )
 					{
 						var a = FuelSweep( q / 4f );
@@ -83,9 +77,16 @@
 				</div>
 		</div>
 
-		<!-- centre: KM/H | RPM on top, then shift lights, then tell-tales -->
+		<!-- centre: KM/H | RPM readout, shift lights, tell-tales -->
 		<div class="center-cluster">
-			<!-- speed + RPM readout (most above) -->
+			@if ( v.IsWrecked )
+			{
+				<div class="wreck-banner">
+					<i>car_crash</i>
+					<span>WRECKED — BODY REPAIR REQUIRED</span>
+				</div>
+			}
+
 			<div class="speedline">
 				<div class="grp">
 					<span class="big">@kmh</span>
@@ -107,14 +108,14 @@
 				}
 			</div>
 
-			<!-- dashboard tell-tales -->
+			<!-- dashboard tell-tales: icon + label so state is never color alone -->
 			<div class="tells">
-				<div class="tell eng @(v.EngineHealthPct < 0.3f ? "on" : "")">CHECK</div>
-				<div class="tell oil @(v.IsLowOil ? "on" : "")">OIL</div>
-				<div class="tell bat @(v.BatteryPct < 0.15f ? "on" : "")">BATT</div>
-				<div class="tell tire @(v.TirePunctureMask != 0 ? "on" : "")">TIRE</div>
-				<div class="tell off @(!v.IsEngineRunning ? "on" : "")">PWR</div>
-				<div class="tell name">@v.Config.DisplayName</div>
+				<div class="tell eng @(v.EngineHealthPct < 0.3f ? "on" : "")"><i>settings</i><span>CHECK</span></div>
+				<div class="tell oil @(v.IsLowOil ? "on" : "")"><i>water_drop</i><span>OIL</span></div>
+				<div class="tell bat @(v.BatteryPct < 0.15f ? "on" : "")"><i>battery_alert</i><span>BATT</span></div>
+				<div class="tell tire @(v.TirePunctureMask != 0 ? "on" : "")"><i>trip_origin</i><span>TIRE</span></div>
+				<div class="tell off @(!v.IsEngineRunning ? "on" : "")"><i>bolt</i><span>PWR</span></div>
+				<div class="tell name"><span>@v.Config.DisplayName</span></div>
 			</div>
 		</div>
 	}
@@ -187,13 +188,22 @@
 	string GearText( int g ) => g switch { -1 => "R", 0 => "N", _ => g.ToString() };
 	string GearClass( int g ) => g switch { -1 => "rev", 0 => "neutral", _ => "drive" };
 
-	protected override int BuildHash() => HashCode.Combine(
-		Target,
-		Target?.EngineRpm ?? 0f,
-		Target?.CurrentGear ?? 0,
-		(int)((Target?.KinematicVelocity.Length ?? 0f) * 0.09144f),
-		Target?.FuelPct ?? 0f,
-		Target?.EngineHealthPct ?? 0f,
-		Target?.OilPct ?? 0f,
-		Target?.TirePunctureMask ?? 0u );
+	protected override int BuildHash()
+	{
+		var stateHash = HashCode.Combine(
+			Target,
+			Target?.EngineRpm ?? 0f,
+			Target?.CurrentGear ?? 0,
+			(int)((Target?.KinematicVelocity.Length ?? 0f) * 0.09144f),
+			Target?.FuelPct ?? 0f,
+			Target?.EngineHealthPct ?? 0f,
+			Target?.OilPct ?? 0f,
+			Target?.TirePunctureMask ?? 0u );
+		// Second stage so the new visual states refresh too (Combine caps at 8 args).
+		return HashCode.Combine( stateHash,
+			Target?.IsWrecked ?? false,
+			Target?.IsEngineRunning ?? false,
+			Target?.IsLowOil ?? false,
+			(int)((Target?.BatteryPct ?? 1f) * 20f) );
+	}
 }

@@ -1,88 +1,338 @@
+@import "_theme.scss";
+
+@keyframes panel-in {
+	0%   { opacity: 0; transform: scale( 0.96 ); }
+	100% { opacity: 1; transform: scale( 1 ); }
+}
+
+@keyframes cursor-blink {
+	0%   { opacity: 1; }
+	50%  { opacity: 0; }
+	100% { opacity: 1; }
+}
+
 .diagnostic-panel {
 	position: absolute;
-	top: 200px;
-	left: 200px;
-	width: 520px;
-	background-color: rgba( 0, 0, 0, 0.85 );
-	color: white;
-	padding: 16px;
-	border-radius: 8px;
+	left: 8%;
+	top: 10%;
+	width: 640px;
 	flex-direction: column;
-	gap: 8px;
-	font-family: Roboto, sans-serif;
+	gap: 5px;
+	padding: 0px 16px 16px 16px;
+	@include glass-panel;
+	animation: panel-in 0.22s ease;
+	font-family: $font-ui, sans-serif;
 
-	.header {
+	// Work-light strip along the top edge (inset past the corner radius)
+	.top-strip {
+		position: absolute;
+		top: 0px;
+		left: 10px;
+		right: 10px;
+		height: 3px;
+		border-radius: 0px 0px 2px 2px;
+		background: linear-gradient( to right, $accent-dim, $accent, $accent-dim );
+		@include glow( $accent-glow );
+	}
+
+	.scan-header {
 		flex-direction: row;
 		align-items: center;
 		gap: 12px;
-		margin-bottom: 8px;
+		padding: 14px 2px 12px 2px;
+		border-bottom: 1px solid $stroke;
+		margin-bottom: 4px;
 
-		.title {
-			font-size: 24px;
-			font-weight: bold;
+		.hicon {
+			@include icon;
+			font-size: 30px;
+			color: $accent;
 		}
 
-		.flash {
+		.htext {
+			flex-direction: column;
 			flex-grow: 1;
-			text-align: right;
-			font-size: 14px;
-			color: rgba( 200, 230, 255, 0.95 );
-			font-style: italic;
+			gap: 1px;
+
+			.title {
+				color: $text-hi;
+				font-family: $font-cond, sans-serif;
+				font-size: 21px;
+				font-weight: 800;
+				letter-spacing: 2px;
+				text-transform: uppercase;
+			}
+
+			.sub {
+				color: $text-dim;
+				font-size: 10px;
+				letter-spacing: 2px;
+			}
+		}
+
+		.verdict {
+			flex-direction: row;
+			align-items: center;
+			gap: 6px;
+			padding: 5px 12px;
+			border-radius: $r-pill;
+			background-color: $bg-inset;
+			border: 1px solid $stroke-strong;
+
+			i {
+				@include icon;
+				font-size: 16px;
+			}
+
+			span {
+				font-family: $font-cond, sans-serif;
+				font-size: 13px;
+				font-weight: 800;
+				letter-spacing: 1px;
+			}
+
+			&.ok   { i, span { color: $good; } border-color: rgba( $good, 0.4 ); }
+			&.warn { i, span { color: $warn; } border-color: rgba( $warn, 0.4 ); }
+			&.crit { i, span { color: $crit; } border-color: rgba( $crit, 0.5 ); @include glow( rgba( $crit, 0.35 ) ); }
+		}
+
+		.close-x {
+			width: 32px;
+			height: 32px;
+			justify-content: center;
+			align-items: center;
+			background-color: $bg-inset;
+			border: 1px solid $stroke;
+			border-radius: $r-sm;
+			cursor: pointer;
+			transition: all 0.15s ease;
+
+			i {
+				@include icon;
+				font-size: 18px;
+				color: $text-mid;
+			}
+
+			&:hover {
+				border-color: $crit;
+				i { color: $text-hi; }
+			}
 		}
 	}
 
-	.row {
+	// Scanner status line — terminal-style readout
+	.scan-line {
 		flex-direction: row;
 		align-items: center;
 		gap: 8px;
+		padding: 7px 12px;
+		background-color: $bg-inset;
+		border-radius: $r-sm;
+		border: 1px solid $stroke;
+		margin-bottom: 4px;
 
-		label {
-			width: 90px;
+		.prompt {
+			color: $accent;
+			font-family: $font-cond, sans-serif;
+			font-size: 14px;
+			font-weight: 800;
 		}
 
-		progress {
-			flex-grow: 1;
-			height: 16px;
+		.text {
+			color: $accent-hi;
+			font-family: $font-cond, sans-serif;
+			font-size: 13px;
+			letter-spacing: 1px;
 		}
 
-		.value {
+		.cursor {
+			width: 7px;
+			height: 14px;
+			background-color: $accent;
+			animation: cursor-blink 1s linear infinite;
+		}
+	}
+
+	.sys-row {
+		flex-direction: row;
+		align-items: center;
+		gap: 10px;
+		padding: 7px 10px;
+		background-color: $bg-raised;
+		border: 1px solid $stroke;
+		border-radius: $r-md;
+
+		.sicon {
+			width: 32px;
+			height: 32px;
+			flex-shrink: 0;
+			justify-content: center;
+			align-items: center;
+			background-color: $bg-inset;
+			border-radius: $r-sm;
+
+			i {
+				@include icon;
+				font-size: 19px;
+				color: $text-mid;
+			}
+		}
+
+		.sname {
 			width: 110px;
-			text-align: right;
+			flex-shrink: 0;
+			flex-direction: row;
+			align-items: center;
+			gap: 6px;
+
+			.nm {
+				color: $text-hi;
+				font-family: $font-cond, sans-serif;
+				font-size: 15px;
+				font-weight: 700;
+			}
+
+			.tag-flat {
+				flex-direction: row;
+				align-items: center;
+				flex-shrink: 0;
+				gap: 2px;
+				padding: 1px 6px;
+				border-radius: $r-pill;
+				background-color: rgba( $crit, 0.15 );
+				border: 1px solid rgba( $crit, 0.5 );
+
+				i    { @include icon; font-size: 11px; color: $crit; }
+				span { color: $crit; font-size: 9px; font-weight: 800; letter-spacing: 1px; }
+			}
 		}
 
-		button {
-			padding: 4px 12px;
-			background-color: rgba( 60, 120, 200, 0.9 );
-			color: white;
+		.bar {
+			flex-grow: 1;
+			flex-shrink: 1;
+			height: 8px;
 			border-radius: 4px;
+			background-color: $bg-inset;
+
+			.fill {
+				height: 8px;
+				border-radius: 4px;
+				transition: width 0.3s ease;
+
+				&.ok   { background: linear-gradient( to right, rgba( $good, 0.65 ), $good ); }
+				&.warn { background: linear-gradient( to right, rgba( $warn, 0.65 ), $warn ); }
+				&.crit { background: linear-gradient( to right, rgba( $crit, 0.65 ), $crit ); @include glow( rgba( $crit, 0.4 ) ); }
+			}
+		}
+
+		.pct {
+			width: 54px;
+			flex-shrink: 0;
+			justify-content: flex-end;
+			color: $text-hi;
+			font-family: $font-cond, sans-serif;
+			font-size: 14px;
+			font-weight: 700;
+		}
+
+		.pump-tag {
+			flex-direction: row;
+			align-items: center;
+			flex-shrink: 0;
+			gap: 4px;
+			padding: 4px 10px;
+			border-radius: $r-sm;
+			background-color: $bg-inset;
+			border: 1px solid $stroke;
+
+			i    { @include icon; font-size: 13px; color: $text-dim; }
+			span { color: $text-dim; font-size: 10px; font-weight: 700; letter-spacing: 1px; }
+		}
+
+		button.repair {
+			flex-direction: row;
+			align-items: center;
+			flex-shrink: 0;
+			gap: 6px;
+			padding: 5px 10px;
+			background-color: $bg-inset;
+			border: 1px solid $accent;
+			border-radius: $r-sm;
 			cursor: pointer;
-			min-width: 110px;
-			text-align: center;
-		}
+			transition: all 0.15s ease;
 
-		button:hover {
-			background-color: rgba( 80, 140, 220, 1 );
-		}
+			i {
+				@include icon;
+				font-size: 14px;
+				color: $accent;
+			}
 
-		button.disabled {
-			background-color: rgba( 80, 80, 80, 0.7 );
-			color: rgba( 180, 180, 180, 0.6 );
-			cursor: default;
-			pointer-events: none;
+			span {
+				color: $text-hi;
+				font-family: $font-cond, sans-serif;
+				font-size: 12px;
+				font-weight: 800;
+				letter-spacing: 1px;
+			}
+
+			.qty {
+				background-color: $accent;
+				color: #14181f;
+				border-radius: $r-pill;
+				font-size: 11px;
+				font-weight: 800;
+				padding: 0px 7px;
+			}
+
+			&:hover {
+				background-color: rgba( $accent, 0.15 );
+			}
+
+			&.disabled {
+				border-color: $stroke;
+				pointer-events: none;
+
+				i    { color: $text-dim; }
+				span { color: $text-dim; }
+				.qty { background-color: $bg-inset; color: $text-dim; border: 1px solid $stroke; }
+			}
 		}
 	}
 
-	.close {
-		align-self: flex-end;
-		margin-top: 12px;
-		padding: 6px 16px;
-		background-color: rgba( 120, 60, 60, 0.9 );
-		color: white;
-		border-radius: 4px;
+	.sys-row.punctured {
+		border-color: rgba( $crit, 0.55 );
+	}
+
+	button.close {
+		flex-direction: row;
+		justify-content: center;
+		align-items: center;
+		gap: 8px;
+		margin-top: 6px;
+		padding: 9px;
+		background-color: $bg-inset;
+		border: 1px solid $stroke-strong;
+		border-radius: $r-md;
 		cursor: pointer;
-	}
+		transition: all 0.15s ease;
 
-	.close:hover {
-		background-color: rgba( 150, 80, 80, 1 );
+		i {
+			@include icon;
+			font-size: 16px;
+			color: $text-mid;
+		}
+
+		span {
+			color: $text-mid;
+			font-family: $font-cond, sans-serif;
+			font-size: 13px;
+			font-weight: 800;
+			letter-spacing: 2px;
+		}
+
+		&:hover {
+			border-color: $crit;
+			i, span { color: $text-hi; }
+		}
 	}
 }

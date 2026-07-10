@@ -6,21 +6,36 @@
 @namespace Vehicles.Maintenance
 
 <root class="diagnostic-panel">
+	<div class="top-strip"></div>
+
 	@if ( Vehicle?.Config is not null )
 	{
-		<div class="header">
-			<span class="title">@Vehicle.Config.DisplayName</span>
-			@if ( !string.IsNullOrEmpty( _flash ) )
-			{
-				<span class="flash">@_flash</span>
-			}
+		<div class="scan-header">
+			<i class="hicon">monitor_heart</i>
+			<div class="htext">
+				<span class="title">@Vehicle.Config.DisplayName</span>
+				<span class="sub">DIAGNOSTIC REPORT</span>
+			</div>
+			<div class="verdict @VerdictClass()">
+				<i>@VerdictIcon()</i>
+				<span>@VerdictText()</span>
+			</div>
+			<button class="close-x" @onclick=@Close><i>close</i></button>
 		</div>
 
-		<!-- Fuel: not a "repaired" part, just a status read-out + a reminder to use a fuel pump -->
-		<div class="row">
-			<label>Fuel</label>
-			<progress max="1" value=@Vehicle.FuelPct />
-			<label class="value">@($"{Vehicle.Fuel:F1} / {Vehicle.Config.FuelCapacityLitres:F0} L")</label>
+		<div class="scan-line">
+			<span class="prompt">&gt;</span>
+			<span class="text">@(_flash ?? "READY — SELECT A SYSTEM TO REPAIR")</span>
+			<div class="cursor"></div>
+		</div>
+
+		<!-- Fuel: not a repaired part — status readout + pointer to the pump -->
+		<div class="sys-row">
+			<div class="sicon"><i>local_gas_station</i></div>
+			<div class="sname"><span class="nm">Fuel</span></div>
+			<div class="bar"><div class="fill @BarClass( Vehicle.FuelPct )" style="width: @( Vehicle.FuelPct * 100f )%"></div></div>
+			<label class="pct">@($"{Vehicle.Fuel:F0}L")</label>
+			<div class="pump-tag"><i>local_gas_station</i><span>USE PUMP</span></div>
 		</div>
 
 		@RepairRow( "Engine", Vehicle.EngineHealthPct, PartKind.Engine )
@@ -31,25 +46,42 @@
 		@for ( int i = 0; i < Vehicle.TireWear.Count; i++ )
 		{
 			int idx = i;
-			var puncMark = Vehicle.IsTirePunctured( idx ) ? " ⚠" : "";
+			var punctured = Vehicle.IsTirePunctured( idx );
+			var health = 1f - Vehicle.TireWear[idx];
 			var tireDef = PartDefinition.Find( PartKind.Tire );
 			var count = CountInInventory( tireDef );
 			var canRepair = CanRepair( tireDef, count );
-			<div class="row">
-				<label>Tire @(idx + 1)@puncMark</label>
-				<progress max="1" value=@(1f - Vehicle.TireWear[idx]) />
-				<button class=@(canRepair ? "" : "disabled") @onclick=@(() => RepairTire( idx ))>
-					@PartButtonText( tireDef, count )
+			<div class="sys-row @(punctured ? "punctured" : "")">
+				<div class="sicon"><i>trip_origin</i></div>
+				<div class="sname">
+					<span class="nm">Tire @(idx + 1)</span>
+					@if ( punctured )
+					{
+						<div class="tag-flat"><i>warning</i><span>FLAT</span></div>
+					}
+				</div>
+				<div class="bar"><div class="fill @BarClass( health )" style="width: @( health * 100f )%"></div></div>
+				<label class="pct">@($"{health * 100f:F0}%")</label>
+				<button class="repair @(canRepair ? "" : "disabled")" @onclick=@(() => RepairTire( idx ))>
+					<i>build</i><span>FIX</span>
+					<div class="qty">×@count</div>
 				</button>
 			</div>
 		}
 
-		<button class="close" @onclick=@Close>Close</button>
+		<button class="close" @onclick=@Close><i>power_settings_new</i><span>CLOSE SCANNER</span></button>
 	}
 	else
 	{
-		<div class="header">No vehicle selected</div>
-		<button class="close" @onclick=@Close>Close</button>
+		<div class="scan-header">
+			<i class="hicon">monitor_heart</i>
+			<div class="htext">
+				<span class="title">NO VEHICLE</span>
+				<span class="sub">CONNECT SCANNER NEAR A CAR</span>
+			</div>
+			<button class="close-x" @onclick=@Close><i>close</i></button>
+		</div>
+		<button class="close" @onclick=@Close><i>power_settings_new</i><span>CLOSE SCANNER</span></button>
 	}
 </root>
 
@@ -95,29 +127,54 @@
 		return count > 0;
 	}
 
-	string PartButtonText( PartDefinition def, int count )
+	// ── Presentation helpers ──────────────────────────────────────────
+	static string BarClass( float pct ) => pct >= 0.6f ? "ok" : pct >= 0.3f ? "warn" : "crit";
+
+	static string KindIcon( PartKind kind ) => kind switch
 	{
-		if ( def is null ) return "No part";
-		return count > 0 ? $"Repair ({count})" : "Out";
+		PartKind.Engine => "settings",
+		PartKind.Body => "car_repair",
+		PartKind.Tire => "trip_origin",
+		PartKind.Battery => "battery_charging_full",
+		PartKind.Oil => "water_drop",
+		_ => "build",
+	};
+
+	float MinHealthPct()
+	{
+		if ( Vehicle is null ) return 1f;
+		var min = MathF.Min( MathF.Min( Vehicle.EngineHealthPct, Vehicle.BodyHealthPct ),
+			MathF.Min( Vehicle.BatteryPct, Vehicle.OilPct ) );
+		for ( int i = 0; i < Vehicle.TireWear.Count; i++ )
+			min = MathF.Min( min, 1f - Vehicle.TireWear[i] );
+		return min;
 	}
 
+	string VerdictClass() => Vehicle?.IsWrecked == true ? "crit" : BarClass( MinHealthPct() );
+	string VerdictIcon() => VerdictClass() switch { "ok" => "check_circle", "warn" => "warning", _ => "error" };
+	string VerdictText() => Vehicle?.IsWrecked == true ? "WRECKED"
+		: VerdictClass() switch { "ok" => "ALL OK", "warn" => "SERVICE", _ => "CRITICAL" };
+
 	// Helper that the markup uses to emit a row + Repair button for any PartKind.
-	RenderFragment RepairRow( string label, float pct, PartKind part ) => @<div class="row">
-		<label>@label</label>
-		<progress max="1" value=@pct />
+	RenderFragment RepairRow( string label, float pct, PartKind part ) => @<div class="sys-row">
+		<div class="sicon"><i>@KindIcon( part )</i></div>
+		<div class="sname"><span class="nm">@label</span></div>
+		<div class="bar"><div class="fill @BarClass( pct )" style="width: @( pct * 100f )%"></div></div>
+		<label class="pct">@($"{pct * 100f:F0}%")</label>
 		@{
 			var def = PartDefinition.Find( part );
 			var count = CountInInventory( def );
 			var canRepair = CanRepair( def, count );
 		}
-		<button class=@(canRepair ? "" : "disabled") @onclick=@(() => RepairPart( part ))>
-			@PartButtonText( def, count )
+		<button class="repair @(canRepair ? "" : "disabled")" @onclick=@(() => RepairPart( part ))>
+			<i>build</i><span>FIX</span>
+			<div class="qty">×@count</div>
 		</button>
 	</div>;
 
-	// Both buttons now route through the shared RepairFlow pipeline (the same
-	// one RepairTool uses). We only translate the structured result back into
-	// the exact flash strings this panel showed before.
+	// Both buttons route through the shared RepairFlow pipeline (the same one
+	// RepairTool uses). We only translate the structured result back into the
+	// scanner status line.
 	void RepairPart( PartKind part )
 	{
 		Mechanic ??= Connection.Local;   // keep the field resolved for the UI helpers
@@ -154,7 +211,7 @@
 	protected override int BuildHash()
 	{
 		// Hash the inventory counts of each repair part too — without this, the
-		// "Repair (3)" button label wouldn't refresh when a part is consumed.
+		// "×3" quantity badge wouldn't refresh when a part is consumed.
 		int invHash = 0;
 		if ( VehicleHost.Current is not null && Mechanic is not null )
 		{
@@ -178,6 +235,6 @@
 			Vehicle?.OilLevel,
 			Vehicle?.TireWear?.Count,
 			Vehicle?.TirePunctureMask );
-		return HashCode.Combine( stateHash, Mechanic?.SteamId, invHash, _flash );
+		return HashCode.Combine( stateHash, Mechanic?.SteamId, invHash, _flash, Vehicle?.IsWrecked );
 	}
 }

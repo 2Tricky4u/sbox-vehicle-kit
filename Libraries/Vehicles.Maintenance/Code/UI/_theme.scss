@@ -1,0 +1,60 @@
+// ─────────────────────────────────────────────────────────────────────
+//  GARAGE OS — shared design tokens for every Vehicles.Maintenance panel
+//  Theme: "Workshop Amber" — dark blue-graphite glass, safety-orange
+//  work-light accent. Status colors are RESERVED for state and are
+//  always paired with an icon or label (never color alone).
+//  Imported by each panel's .scss via  @import "_theme.scss";
+// ─────────────────────────────────────────────────────────────────────
+
+// Fonts
+$font-cond: "Roboto Condensed";     // numerals, headings, technical labels
+$font-ui:   Roboto;                 // body copy
+$font-icon: "Material Icons";       // ligature glyphs (ships with s&box)
+
+// Surfaces (effective composite over the game ≈ #14181f)
+$bg-deep:   rgba( 9, 12, 16, 0.92 );    // modal panels (diagnostic, parts)
+$bg-glass:  rgba( 12, 16, 22, 0.78 );   // HUD clusters, toast chips
+$bg-raised: rgba( 27, 33, 42, 0.85 );   // rows / cards on top of panels
+$bg-inset:  rgba( 0, 0, 0, 0.35 );      // bar troughs, icon wells
+
+$stroke:        rgba( 255, 255, 255, 0.08 );
+$stroke-strong: rgba( 255, 255, 255, 0.16 );
+
+// Text — text wears text tokens, never accent, never status.
+$text-hi:  #f2f6fa;
+$text-mid: #a8b4c2;
+$text-dim: #627080;
+
+// Status — reserved for vehicle state, always icon+label paired.
+$good: #3fd672;
+$warn: #ffb020;
+$crit: #ff4d4d;
+
+// Accent — Workshop Amber. Chrome, selection, needles, edges. Never state.
+$accent:      #ffa726;
+$accent-hi:   #ffc266;
+$accent-dim:  #c97a10;
+$accent-glow: rgba( 255, 167, 38, 0.45 );
+
+// Radii + shadow
+$r-sm: 4px;
+$r-md: 8px;
+$r-lg: 14px;
+$r-pill: 999px;
+$shadow-panel: 0px 12px 40px rgba( 0, 0, 0, 0.6 );
+
+@mixin glass-panel {
+	background-color: $bg-deep;
+	border: 1px solid $stroke-strong;
+	border-radius: $r-lg;
+	box-shadow: $shadow-panel;
+	backdrop-filter: blur( 14px );
+}
+
+@mixin glow( $c ) {
+	box-shadow: 0px 0px 3px $c, 0px 0px 12px rgba( $c, 0.5 );
+}
+
+@mixin icon {
+	font-family: $font-icon;
+}

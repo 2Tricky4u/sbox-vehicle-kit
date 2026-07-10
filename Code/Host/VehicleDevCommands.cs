@@ -598,10 +598,10 @@ public static class VehicleDevCommands
 	}
 
 	[ConCmd( "vh.toast" )]
-	public static void TestToast( string message = "Test toast" )
+	public static void TestToast( string message = "Test toast", float seconds = 3f )
 	{
-		Toast.Show( message );
-		Log.Info( $"[vh] Toast.Show(\"{message}\") — needs a ScreenPanel in scene." );
+		Toast.Show( message, seconds );
+		Log.Info( $"[vh] Toast.Show(\"{message}\", {seconds:F0}s)" );
 	}
 
 	[ConCmd( "vh.parts" )]

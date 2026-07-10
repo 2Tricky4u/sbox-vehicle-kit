@@ -5,29 +5,43 @@
 @namespace Vehicles.Maintenance
 
 <root class="part-select-panel">
+	<div class="top-strip"></div>
+
 	<div class="header">
-		<span class="title">Select Part</span>
-		<button class="close" @onclick=@Close>Close</button>
+		<i class="hicon">handyman</i>
+		<div class="htext">
+			<span class="title">PARTS CRATE</span>
+			<span class="sub">SELECT A REPAIR PART</span>
+		</div>
+		<button class="close-x" @onclick=@Close><i>close</i></button>
 	</div>
 
-	@foreach ( var def in PartDefinition.All )
-	{
-		var part = def;
-		var count = CountOf( part );
-		var selected = Tool?.CurrentPart == part;
-		<div class="row @(count > 0 ? "" : "empty") @(selected ? "selected" : "")">
-			<label class="name">@part.DisplayName</label>
-			<label class="kind">@part.RepairsPart</label>
-			<label class="count">x@count</label>
-			<button class=@(selected ? "sel" : "") @onclick=@(() => Pick( part ))>
-				@(selected ? "Selected" : "Select")
-			</button>
-		</div>
-	}
+	<div class="grid">
+		@foreach ( var def in PartDefinition.All )
+		{
+			var part = def;
+			var count = CountOf( part );
+			var selected = Tool?.CurrentPart == part;
+			<div class="card @(count > 0 ? "" : "empty") @(selected ? "selected" : "")" @onclick=@(() => Pick( part ))>
+				<div class="badge @(count > 0 ? "" : "zero")">×@count</div>
+				<i class="picon">@KindIcon( part.RepairsPart )</i>
+				<span class="pname">@part.DisplayName</span>
+				<span class="pkind">@part.RepairsPart</span>
+				<div class="pprice"><i>paid</i><span>$@part.Price</span></div>
+				@if ( selected )
+				{
+					<div class="sel-tag"><i>check_circle</i><span>EQUIPPED</span></div>
+				}
+			</div>
+		}
+	</div>
 
 	@if ( !PartDefinition.All.Any() )
 	{
-		<div class="row empty"><label class="name">No part definitions found</label></div>
+		<div class="empty-state">
+			<i>inventory_2</i>
+			<span>No part definitions found</span>
+		</div>
 	}
 </root>
 
@@ -52,6 +66,17 @@
 		if ( conn is null ) return 0;
 		return VehicleHost.Current.GetInventory( conn )?.CountOf( def ) ?? 0;
 	}
+
+	// Material Icons ligature per part kind (glyphs verified in the shipped font).
+	static string KindIcon( PartKind kind ) => kind switch
+	{
+		PartKind.Engine => "settings",
+		PartKind.Body => "car_repair",
+		PartKind.Tire => "trip_origin",
+		PartKind.Battery => "battery_charging_full",
+		PartKind.Oil => "oil_barrel",
+		_ => "build",
+	};
 
 	void Pick( PartDefinition def )
 	{

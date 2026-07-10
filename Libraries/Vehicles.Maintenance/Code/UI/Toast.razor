@@ -7,7 +7,12 @@
 <root class="toast-stack">
 	@foreach ( var t in _items )
 	{
-		<div class="toast" style="animation-duration: @(t.Seconds)s;">@t.Message</div>
+		<div class="toast" style="animation-duration: @(t.Seconds)s;">
+			<div class="edge"></div>
+			<i class="ticon">notifications</i>
+			<span class="msg">@t.Message</span>
+			<div class="life" style="animation-duration: @(t.Seconds)s;"></div>
+		</div>
 	}
 </root>
 

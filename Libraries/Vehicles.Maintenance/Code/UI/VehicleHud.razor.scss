@@ -1,3 +1,16 @@
+@import "_theme.scss";
+
+@keyframes hud-in {
+	0%   { opacity: 0; transform: translateY( 24px ); }
+	100% { opacity: 1; transform: translateY( 0px ); }
+}
+
+@keyframes lamp-pulse {
+	0%   { opacity: 1; }
+	50%  { opacity: 0.35; }
+	100% { opacity: 1; }
+}
+
 .racing-hud {
 	position: absolute;
 	top: 0px;
@@ -5,367 +18,397 @@
 	right: 0px;
 	bottom: 0px;
 	pointer-events: none;
-	font-family: "Roboto Condensed", Roboto, sans-serif;
+	font-family: $font-cond, Roboto, sans-serif;
 	transition: opacity 0.25s ease;
 	opacity: 1;
 
-	&.hidden { opacity: 0; }
-
-	// fuel gauge pinned bottom-left (inset so the needle reads more centred)
-	.left-cluster {
-		position: absolute;
-		left: 12%;
-		bottom: 2%;
+	&.hidden {
+		opacity: 0;
 	}
 
-	// speedometer pinned bottom-right (inset for the same reason)
+	// ── Speedometer (bottom-right) ────────────────────────────────────
 	.right-cluster {
 		position: absolute;
-		right: 12%;
-		bottom: 2%;
+		right: 10%;
+		bottom: 2.5%;
+		animation: hud-in 0.4s ease;
+
+		.dial {
+			width: 260px;
+			height: 260px;
+			border-radius: 130px;
+			position: relative;
+			background: linear-gradient( 180deg, rgba( 30, 38, 48, 0.9 ), rgba( 9, 12, 16, 0.94 ) );
+			border: 2px solid $stroke-strong;
+			box-shadow: $shadow-panel;
+
+			.tick {
+				position: absolute;
+				width: 2px;
+				height: 12px;
+				border-radius: 1px;
+				background-color: rgba( 168, 180, 194, 0.4 );
+
+				&.major {
+					width: 3px;
+					height: 16px;
+					background-color: $text-hi;
+				}
+
+				&.redline {
+					background-color: $crit;
+				}
+			}
+
+			.tnum {
+				position: absolute;
+				width: 32px;
+				height: 18px;
+				justify-content: center;
+				align-items: center;
+				color: $text-mid;
+				font-size: 15px;
+				font-weight: 700;
+			}
+
+			.dgear {
+				position: absolute;
+				left: 108px;
+				top: 178px;
+				width: 44px;
+				height: 34px;
+				justify-content: center;
+				align-items: center;
+				border-radius: $r-md;
+				background-color: $bg-raised;
+				border: 1px solid $accent;
+				color: $text-hi;
+				font-size: 20px;
+				font-weight: 800;
+
+				&.rev     { border-color: $crit; }
+				&.neutral { border-color: rgba( 255, 255, 255, 0.25 ); }
+			}
+
+			.hub {
+				position: absolute;
+				left: 119px;
+				top: 119px;
+				width: 22px;
+				height: 22px;
+				border-radius: 11px;
+				background-color: #1b212a;
+				border: 2px solid $accent;
+				@include glow( rgba( $accent-glow, 0.6 ) );
+			}
+
+			.needle-pivot {
+				position: absolute;
+				left: 130px;
+				top: 130px;
+				width: 0px;
+				height: 0px;
+				transition: transform 0.08s linear;
+
+				.needle {
+					position: absolute;
+					left: -3px;
+					top: -104px;
+					width: 6px;
+					height: 108px;
+					border-radius: 3px;
+					background: linear-gradient( to top, $accent-dim, $accent-hi );
+					@include glow( $accent-glow );
+				}
+			}
+		}
 	}
 
-	// KM/H|RPM (top) → shift lights → tell-tales, centred along the bottom
+	// ── Fuel gauge (bottom-left) ─────────────────────────────────────
+	.left-cluster {
+		position: absolute;
+		left: 10%;
+		bottom: 2.5%;
+		animation: hud-in 0.45s ease;
+
+		.fuelgauge {
+			width: 160px;
+			height: 132px;
+			position: relative;
+			border-radius: $r-lg;
+			background: linear-gradient( 180deg, rgba( 30, 38, 48, 0.9 ), rgba( 9, 12, 16, 0.94 ) );
+			border: 2px solid $stroke-strong;
+			box-shadow: $shadow-panel;
+
+			.fglyph {
+				@include icon;
+				position: absolute;
+				left: 56px;
+				top: 26px;
+				font-size: 48px;
+				color: rgba( 168, 180, 194, 0.13 );
+			}
+
+			.ftick {
+				position: absolute;
+				width: 2px;
+				height: 10px;
+				border-radius: 1px;
+				background-color: rgba( 168, 180, 194, 0.4 );
+
+				&.major {
+					width: 3px;
+					height: 13px;
+					background-color: $text-hi;
+				}
+
+				&.red {
+					background-color: $crit;
+				}
+			}
+
+			.fend {
+				position: absolute;
+				width: 18px;
+				height: 16px;
+				justify-content: center;
+				align-items: center;
+				color: $text-mid;
+				font-size: 13px;
+				font-weight: 800;
+
+				&.e { color: rgba( $crit, 0.9 ); }
+			}
+
+			.fneedle-pivot {
+				position: absolute;
+				left: 80px;
+				top: 96px;
+				width: 0px;
+				height: 0px;
+				transition: transform 0.2s ease;
+
+				.fneedle {
+					position: absolute;
+					left: -2px;
+					top: -58px;
+					width: 4px;
+					height: 60px;
+					border-radius: 2px;
+					background: linear-gradient( to top, $accent-dim, $accent-hi );
+					@include glow( rgba( $accent-glow, 0.5 ) );
+
+					&.low {
+						background: linear-gradient( to top, rgba( $crit, 0.8 ), $crit );
+						@include glow( rgba( $crit, 0.5 ) );
+						animation: lamp-pulse 1.2s ease infinite;
+					}
+				}
+			}
+
+			.fhub {
+				position: absolute;
+				left: 73px;
+				top: 89px;
+				width: 14px;
+				height: 14px;
+				border-radius: 7px;
+				background-color: #1b212a;
+				border: 2px solid $accent;
+			}
+
+			.fcap {
+				position: absolute;
+				left: 0px;
+				right: 0px;
+				bottom: 6px;
+				flex-direction: row;
+				justify-content: center;
+				align-items: center;
+				gap: 8px;
+
+				.ficon {
+					color: $text-dim;
+					font-size: 10px;
+					font-weight: 800;
+					letter-spacing: 2px;
+				}
+
+				.fpct {
+					color: $text-hi;
+					font-size: 14px;
+					font-weight: 800;
+
+					&.low {
+						color: $crit;
+						animation: lamp-pulse 1.2s ease infinite;
+					}
+				}
+			}
+		}
+	}
+
+	// ── Centre cluster ────────────────────────────────────────────────
 	.center-cluster {
 		position: absolute;
 		left: 0px;
 		right: 0px;
-		bottom: 2%;
+		bottom: 2.5%;
 		flex-direction: column;
 		align-items: center;
 		justify-content: flex-end;
 		gap: 8px;
-	}
+		animation: hud-in 0.35s ease;
 
-	// ── shift / rev lights ──────────────────────────────
-	.shift {
-		flex-direction: row;
-		gap: 5px;
-		padding: 6px 12px;
-		background-color: rgba( 8, 10, 14, 0.7 );
-		border-radius: 8px;
-
-		.sl {
-			width: 16px;
-			height: 9px;
-			border-radius: 3px;
-			background-color: rgba( 255, 255, 255, 0.08 );
-			transition: background-color 0.05s linear;
-		}
-		.sl.on.green  { background-color: rgba( 60, 230, 110, 1 ); box-shadow: 0px 0px 8px rgba( 60, 230, 110, 0.8 ); }
-		.sl.on.amber  { background-color: rgba( 255, 190, 40, 1 );  box-shadow: 0px 0px 8px rgba( 255, 190, 40, 0.8 ); }
-		.sl.on.red    { background-color: rgba( 255, 60, 60, 1 );   box-shadow: 0px 0px 10px rgba( 255, 60, 60, 0.9 ); }
-	}
-
-	// ── circular speedometer (bottom-right) ─────────────
-	.dial {
-		position: relative;
-		width: 260px;
-		height: 260px;
-		border-radius: 130px;
-		background-color: rgba( 10, 13, 18, 0.82 );
-		border: 2px solid rgba( 120, 200, 255, 0.22 );
-		box-shadow: 0px 8px 30px rgba( 0, 0, 0, 0.6 );
-
-		.tick {
-			position: absolute;
-			width: 2px;
-			height: 12px;
-			margin-left: -1px;
-			margin-top: -6px;
-			background-color: rgba( 170, 200, 230, 0.45 );
-		}
-		.tick.major {
-			width: 4px;
-			height: 18px;
-			margin-left: -2px;
-			margin-top: -9px;
-			background-color: rgba( 210, 235, 255, 0.9 );
-		}
-
-		.tnum {
-			position: absolute;
-			width: 32px;
-			text-align: center;
-			font-size: 15px;
-			font-weight: 700;
-			color: rgba( 200, 225, 245, 0.85 );
-		}
-
-		// needle pivots around the gauge centre (0-size point at 130,130)
-		.needle-pivot {
-			position: absolute;
-			left: 130px;
-			top: 130px;
-			width: 0px;
-			height: 0px;
-			transition: transform 0.08s linear;
-		}
-		.needle {
-			position: absolute;
-			bottom: 0px;
-			left: -3px;
-			width: 6px;
-			height: 108px;
-			border-radius: 3px;
-			background-image: linear-gradient( to top, rgba( 255, 80, 60, 1 ), rgba( 255, 170, 60, 1 ) );
-			box-shadow: 0px 0px 10px rgba( 255, 90, 60, 0.7 );
-		}
-		.hub {
-			position: absolute;
-			left: 119px;
-			top: 119px;
-			width: 22px;
-			height: 22px;
-			border-radius: 11px;
-			background-color: rgba( 40, 50, 65, 1 );
-			border: 2px solid rgba( 150, 200, 240, 0.5 );
-		}
-
-		// gear badge, sat just below the hub / beside the needle
-		.dgear {
-			position: absolute;
-			left: 113px;
-			top: 158px;
-			width: 36px;
-			height: 38px;
-			border-radius: 8px;
-			justify-content: center;
+		.wreck-banner {
+			flex-direction: row;
 			align-items: center;
-			font-size: 22px;
-			font-weight: 800;
-			color: white;
-			background-color: rgba( 40, 110, 200, 0.92 );
-			border: 1px solid rgba( 150, 200, 255, 0.35 );
+			gap: 10px;
+			padding: 8px 22px;
+			border-radius: $r-md;
+			background-color: rgba( 40, 10, 10, 0.85 );
+			border: 1px solid $crit;
+			@include glow( rgba( $crit, 0.4 ) );
+
+			i {
+				@include icon;
+				font-size: 22px;
+				color: $crit;
+				animation: lamp-pulse 1s ease infinite;
+			}
+
+			span {
+				color: $text-hi;
+				font-size: 15px;
+				font-weight: 800;
+				letter-spacing: 2px;
+			}
 		}
-		.dgear.rev { background-color: rgba( 200, 80, 60, 0.92 ); }
-		.dgear.neutral { background-color: rgba( 90, 90, 100, 0.85 ); }
 
-		// (speed + gear readout moved OUT of the dial — see .speedline below;
-		// inside the circular dial it kept getting clipped by the mask/hub/needle)
+		.speedline {
+			flex-direction: row;
+			align-items: center;
+			gap: 18px;
+			padding: 8px 26px;
+			border-radius: $r-lg;
+			background-color: $bg-glass;
+			border: 1px solid $stroke-strong;
+			box-shadow: $shadow-panel;
 
-	}
+			.grp {
+				flex-direction: column;
+				align-items: center;
+				gap: 0px;
 
-	// ── automotive fuel gauge (right of speedo) ─────────
-	.fuelgauge {
-		position: relative;
-		width: 160px;
-		height: 132px;
-		background-color: rgba( 10, 13, 18, 0.82 );
-		border: 2px solid rgba( 120, 200, 255, 0.22 );
-		border-radius: 14px;
-		box-shadow: 0px 8px 30px rgba( 0, 0, 0, 0.6 );
+				.big {
+					color: $text-hi;
+					font-size: 46px;
+					font-weight: 800;
+				}
 
-		// faint CSS-drawn gas-pump watermark, behind ticks/needle
-		.fuel-logo {
-			position: absolute;
-			left: 0px;
-			top: 0px;
-			width: 160px;
-			height: 132px;
-			opacity: 0.13;
-			transform: scale( 0.6 );
-
-			.pbody {
-				position: absolute;
-				left: 60px;
-				top: 34px;
-				width: 30px;
-				height: 50px;
-				border-radius: 5px;
-				background-color: rgba( 170, 215, 250, 1 );
-
-				.pscreen {
-					position: absolute;
-					left: 5px;
-					top: 6px;
-					width: 20px;
-					height: 11px;
-					border-radius: 2px;
-					background-color: rgba( 10, 13, 18, 1 );
+				.lbl {
+					color: $text-dim;
+					font-size: 11px;
+					font-weight: 700;
+					letter-spacing: 3px;
 				}
 			}
-			.pbase {
-				position: absolute;
-				left: 55px;
-				top: 84px;
-				width: 40px;
-				height: 7px;
-				border-radius: 2px;
-				background-color: rgba( 170, 215, 250, 1 );
-			}
-			.phose {
-				position: absolute;
-				left: 86px;
-				top: 44px;
-				width: 12px;
-				height: 5px;
-				background-color: rgba( 170, 215, 250, 1 );
-			}
-			.pnozzle {
-				position: absolute;
-				left: 95px;
-				top: 44px;
-				width: 6px;
-				height: 22px;
-				border-radius: 2px;
-				background-color: rgba( 170, 215, 250, 1 );
+
+			.sep {
+				width: 1px;
+				height: 44px;
+				background-color: $stroke-strong;
 			}
 		}
 
-		.ftick {
-			position: absolute;
-			width: 2px;
-			height: 9px;
-			margin-left: -1px;
-			margin-top: -4px;
-			background-color: rgba( 170, 200, 230, 0.5 );
-		}
-		.ftick.major {
-			width: 3px;
-			height: 13px;
-			margin-left: -1px;
-			margin-top: -6px;
-			background-color: rgba( 210, 235, 255, 0.9 );
-		}
-		.ftick.red {
-			background-color: rgba( 235, 70, 55, 1 );
-		}
-
-		.fend {
-			position: absolute;
-			width: 18px;
-			text-align: center;
-			font-size: 15px;
-			font-weight: 800;
-			color: rgba( 210, 235, 255, 0.9 );
-		}
-		.fend.e { color: rgba( 235, 90, 70, 1 ); }
-
-		.fneedle-pivot {
-			position: absolute;
-			left: 80px;
-			top: 96px;
-			width: 0px;
-			height: 0px;
-			transition: transform 0.2s ease;
-		}
-		.fneedle {
-			position: absolute;
-			bottom: 0px;
-			left: -2px;
-			width: 4px;
-			height: 52px;
-			border-radius: 2px;
-			background-image: linear-gradient( to top, rgba( 230, 235, 245, 1 ), rgba( 120, 200, 255, 1 ) );
-		}
-		.fneedle.low {
-			background-image: linear-gradient( to top, rgba( 235, 90, 60, 1 ), rgba( 255, 170, 90, 1 ) );
-		}
-		.fhub {
-			position: absolute;
-			left: 70px;
-			top: 86px;
-			width: 20px;
-			height: 20px;
-			border-radius: 10px;
-			background-color: rgba( 40, 50, 65, 1 );
-			border: 2px solid rgba( 150, 200, 240, 0.5 );
-		}
-
-		.fcap {
-			position: absolute;
-			left: 0px;
-			top: 100px;
-			width: 160px;
+		.shift {
 			flex-direction: row;
-			justify-content: center;
-			align-items: center;
-			gap: 6px;
+			gap: 5px;
 
-			.ficon {
-				font-size: 12px;
-				font-weight: 700;
-				letter-spacing: 2px;
-				color: rgba( 150, 190, 220, 0.7 );
+			.sl {
+				width: 15px;
+				height: 6px;
+				border-radius: 3px;
+				background-color: rgba( 255, 255, 255, 0.07 );
+				transition: background-color 0.05s linear;
+
+				&.on {
+					&.green { background-color: $good;  @include glow( rgba( $good, 0.5 ) ); }
+					&.amber { background-color: $warn;  @include glow( rgba( $warn, 0.5 ) ); }
+					&.red   { background-color: $crit;  @include glow( rgba( $crit, 0.55 ) ); }
+				}
 			}
-			.fpct {
-				font-size: 18px;
-				font-weight: 800;
-				color: white;
+		}
+
+		.tells {
+			flex-direction: row;
+			align-items: center;
+			gap: 8px;
+			padding: 7px 14px;
+			border-radius: $r-md;
+			background-color: $bg-glass;
+			border: 1px solid $stroke;
+
+			.tell {
+				flex-direction: column;
+				align-items: center;
+				gap: 1px;
+				padding: 2px 7px;
+
+				i {
+					@include icon;
+					font-size: 19px;
+					color: rgba( 98, 112, 128, 0.4 );
+				}
+
+				span {
+					color: rgba( 98, 112, 128, 0.4 );
+					font-size: 8px;
+					font-weight: 800;
+					letter-spacing: 1px;
+				}
+
+				// Lit lamps: status color + icon + label (never color alone)
+				&.on {
+					&.eng, &.tire {
+						i, span { color: $crit; }
+						i { animation: lamp-pulse 1s ease infinite; }
+					}
+
+					&.oil, &.bat {
+						i, span { color: $warn; }
+					}
+
+					&.off {
+						i, span { color: $text-mid; }
+					}
+				}
+
+				&.name {
+					padding-left: 12px;
+					border-left: 1px solid $stroke;
+
+					span {
+						color: $text-mid;
+						font-size: 13px;
+						font-weight: 700;
+						letter-spacing: 2px;
+						text-transform: uppercase;
+					}
+				}
 			}
-			.fpct.low { color: rgba( 255, 110, 80, 1 ); }
 		}
 	}
 
-	// ── digital KM/H | RPM readout (below the gauges, never clipped) ──
-	.speedline {
-		flex-direction: row;
-		align-items: center;
-		justify-content: center;
-		gap: 26px;
-		padding: 8px 26px;
-		background-color: rgba( 8, 10, 14, 0.72 );
-		border-radius: 10px;
-
-		.grp {
-			flex-direction: column;
-			align-items: center;
-			gap: 1px;
-
-			.big {
-				font-size: 48px;
-				font-weight: 800;
-				color: white;
-				height: 56px;
-				text-align: center;
-			}
-			.lbl {
-				font-size: 12px;
-				font-weight: 700;
-				letter-spacing: 4px;
-				color: rgba( 150, 190, 220, 0.7 );
-			}
+	// ── Wrecked treatment: dim the live gauges, banner carries the state ──
+	&.wrecked {
+		.right-cluster,
+		.left-cluster {
+			filter: brightness( 0.45 );
 		}
 
-		.sep {
-			width: 2px;
-			height: 46px;
-			border-radius: 1px;
-			background-color: rgba( 150, 200, 255, 0.22 );
-		}
-	}
-
-	// ── dashboard tell-tales ────────────────────────────
-	.tells {
-		flex-direction: row;
-		align-items: center;
-		gap: 6px;
-		padding: 6px 10px;
-		background-color: rgba( 8, 10, 14, 0.7 );
-		border-radius: 8px;
-
-		.tell {
-			font-size: 12px;
-			font-weight: 700;
-			letter-spacing: 1px;
-			padding: 3px 9px;
-			border-radius: 5px;
-			color: rgba( 255, 255, 255, 0.18 );
-			background-color: rgba( 255, 255, 255, 0.05 );
-		}
-		.tell.on { color: white; }
-		.tell.eng.on  { background-color: rgba( 210, 70, 60, 0.95 ); }
-		.tell.oil.on  { background-color: rgba( 210, 130, 30, 0.95 ); }
-		.tell.bat.on  { background-color: rgba( 200, 160, 40, 0.95 ); }
-		.tell.tire.on { background-color: rgba( 210, 70, 60, 0.95 ); }
-		.tell.off.on  { background-color: rgba( 90, 90, 90, 0.95 ); }
-
-		.tell.name {
-			color: rgba( 200, 230, 255, 0.85 );
-			background-color: rgba( 0, 0, 0, 0 );
-			font-weight: 600;
-			letter-spacing: 2px;
+		.speedline {
+			filter: brightness( 0.45 );
 		}
 	}
 }

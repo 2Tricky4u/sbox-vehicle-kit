@@ -1,80 +1,227 @@
+@import "_theme.scss";
+
+@keyframes panel-in {
+	0%   { opacity: 0; transform: scale( 0.96 ); }
+	100% { opacity: 1; transform: scale( 1 ); }
+}
+
 .part-select-panel {
 	position: absolute;
-	top: 220px;
-	left: 240px;
-	width: 460px;
-	background-color: rgba( 0, 0, 0, 0.85 );
-	color: white;
-	padding: 16px;
-	border-radius: 8px;
+	left: 10%;
+	top: 16%;
+	width: 540px;
 	flex-direction: column;
-	gap: 6px;
-	font-family: Roboto, sans-serif;
+	padding: 0px 16px 16px 16px;
+	@include glass-panel;
+	animation: panel-in 0.22s ease;
+	font-family: $font-ui, sans-serif;
+
+	// Work-light strip along the top edge (inset past the corner radius)
+	.top-strip {
+		position: absolute;
+		top: 0px;
+		left: 10px;
+		right: 10px;
+		height: 3px;
+		border-radius: 0px 0px 2px 2px;
+		background: linear-gradient( to right, $accent-dim, $accent, $accent-dim );
+		@include glow( $accent-glow );
+	}
 
 	.header {
 		flex-direction: row;
 		align-items: center;
 		gap: 12px;
-		margin-bottom: 8px;
+		padding: 14px 2px 12px 2px;
+		border-bottom: 1px solid $stroke;
+		margin-bottom: 12px;
 
-		.title {
-			font-size: 22px;
-			font-weight: bold;
+		.hicon {
+			@include icon;
+			font-size: 28px;
+			color: $accent;
+		}
+
+		.htext {
+			flex-direction: column;
 			flex-grow: 1;
+			gap: 1px;
+
+			.title {
+				color: $text-hi;
+				font-family: $font-cond, sans-serif;
+				font-size: 21px;
+				font-weight: 800;
+				letter-spacing: 2px;
+			}
+
+			.sub {
+				color: $text-dim;
+				font-size: 10px;
+				letter-spacing: 2px;
+			}
 		}
 
-		.close {
-			padding: 6px 16px;
-			background-color: rgba( 120, 60, 60, 0.9 );
-			color: white;
-			border-radius: 4px;
+		.close-x {
+			width: 32px;
+			height: 32px;
+			justify-content: center;
+			align-items: center;
+			background-color: $bg-inset;
+			border: 1px solid $stroke;
+			border-radius: $r-sm;
 			cursor: pointer;
+			transition: all 0.15s ease;
+
+			i {
+				@include icon;
+				font-size: 18px;
+				color: $text-mid;
+			}
+
+			&:hover {
+				border-color: $crit;
+				i { color: $text-hi; }
+			}
 		}
-		.close:hover { background-color: rgba( 150, 80, 80, 1 ); }
 	}
 
-	.row {
+	.grid {
 		flex-direction: row;
+		flex-wrap: wrap;
+		gap: 10px;
+	}
+
+	.card {
+		width: 160px;
+		height: 150px;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: 3px;
+		position: relative;
+		background: linear-gradient( 180deg, $bg-raised, rgba( 14, 18, 24, 0.9 ) );
+		border: 1px solid $stroke;
+		border-radius: $r-md;
+		cursor: pointer;
+		transition: all 0.15s ease;
+
+		.picon {
+			@include icon;
+			font-size: 42px;
+			color: $text-mid;
+			transition: color 0.15s ease;
+		}
+
+		.pname {
+			color: $text-hi;
+			font-family: $font-cond, sans-serif;
+			font-size: 15px;
+			font-weight: 700;
+		}
+
+		.pkind {
+			color: $text-dim;
+			font-size: 10px;
+			letter-spacing: 2px;
+			text-transform: uppercase;
+		}
+
+		.pprice {
+			flex-direction: row;
+			align-items: center;
+			gap: 3px;
+			margin-top: 2px;
+
+			i {
+				@include icon;
+				font-size: 13px;
+				color: $text-dim;
+			}
+
+			span {
+				color: $text-mid;
+				font-size: 12px;
+				font-weight: 600;
+			}
+		}
+
+		.badge {
+			position: absolute;
+			top: 8px;
+			right: 8px;
+			background-color: $bg-inset;
+			border: 1px solid $stroke-strong;
+			border-radius: $r-pill;
+			color: $text-hi;
+			font-size: 12px;
+			font-weight: 800;
+			padding: 1px 8px;
+
+			&.zero {
+				color: $crit;
+				border-color: rgba( $crit, 0.5 );
+			}
+		}
+
+		.sel-tag {
+			position: absolute;
+			bottom: 8px;
+			left: 0px;
+			right: 0px;
+			flex-direction: row;
+			justify-content: center;
+			align-items: center;
+			gap: 4px;
+
+			i {
+				@include icon;
+				font-size: 13px;
+				color: $accent-hi;
+			}
+
+			span {
+				color: $accent-hi;
+				font-size: 10px;
+				font-weight: 800;
+				letter-spacing: 2px;
+			}
+		}
+
+		&:hover {
+			border-color: $accent;
+			filter: brightness( 1.15 );
+
+			.picon { color: $text-hi; }
+		}
+
+		&.selected {
+			border-color: $accent;
+			@include glow( $accent-glow );
+
+			.picon { color: $accent; }
+		}
+
+		&.empty {
+			opacity: 0.45;
+		}
+	}
+
+	.empty-state {
+		flex-direction: column;
 		align-items: center;
 		gap: 8px;
-		padding: 4px 6px;
-		border-radius: 4px;
+		padding: 30px;
 
-		.name {
-			flex-grow: 1;
-			font-size: 15px;
+		i {
+			@include icon;
+			font-size: 44px;
+			color: $text-dim;
 		}
-		.kind {
-			width: 80px;
-			font-size: 12px;
-			color: rgba( 170, 200, 230, 0.7 );
-		}
-		.count {
-			width: 44px;
-			text-align: right;
+
+		span {
+			color: $text-dim;
 			font-size: 14px;
 		}
-
-		button {
-			padding: 4px 12px;
-			background-color: rgba( 60, 120, 200, 0.9 );
-			color: white;
-			border-radius: 4px;
-			cursor: pointer;
-			min-width: 90px;
-			text-align: center;
-		}
-		button:hover { background-color: rgba( 80, 140, 220, 1 ); }
-		button.sel { background-color: rgba( 60, 160, 90, 0.95 ); }
-	}
-
-	.row.selected {
-		background-color: rgba( 60, 160, 90, 0.18 );
-	}
-
-	.row.empty {
-		opacity: 0.45;
-
-		.count { color: rgba( 230, 120, 90, 0.9 ); }
 	}
 }
