@@ -22,11 +22,16 @@ public sealed partial class VehicleBase : Component
 
 	[RequireComponent] public Rigidbody Body { get; set; }
 
-	/// <summary>Bypass the Network.IsOwner check so the vehicle simulates locally.
-	/// Leave true for solo editor testing; flip to false when adding multiplayer.</summary>
+	/// <summary>Solo/offline only: simulate even without network ownership so
+	/// editor testing works. Ignored the moment the object is networked —
+	/// networked vehicles are ALWAYS owner-authoritative (proxies never
+	/// simulate or write [Sync] state), so this is safe to leave true.</summary>
 	[Property, Group( "Debug" )] public bool LocalSimulation { get; set; } = true;
 
-	bool ShouldSimulate => LocalSimulation || Network.IsOwner;
+	// Networked: only the owning client (or the host for unowned objects)
+	// runs the sim. Every proxy simulating too was the old failure mode —
+	// all clients integrated positions and fought over [Sync] state.
+	bool ShouldSimulate => Network.Active ? !IsProxy : LocalSimulation;
 
 	protected override void OnAwake()
 	{
@@ -38,12 +43,19 @@ public sealed partial class VehicleBase : Component
 		}
 
 		Body.MassOverride = Config.MassKg;
-		Fuel = Config.FuelCapacityLitres;
-		EngineHealth = Config.EngineMaxHealth;
-		BodyHealth = Config.BodyMaxHealth;
-		BatteryCharge = BatteryMaxCharge;
-		OilLevel = OilMaxLevel;
-		EnsureTireWearList();
+
+		// [Sync] state is initialised by the simulating side only — a proxy
+		// writing these in its own OnAwake would fight the owner's replication
+		// (the old bug: every client re-seeded fuel/health/TireWear on join).
+		if ( !Network.Active || !IsProxy )
+		{
+			Fuel = Config.FuelCapacityLitres;
+			EngineHealth = Config.EngineMaxHealth;
+			BodyHealth = Config.BodyMaxHealth;
+			BatteryCharge = BatteryMaxCharge;
+			OilLevel = OilMaxLevel;
+			EnsureTireWearList();
+		}
 
 		// Schema sanity: Config.SeatCount is the data-side seat contract; the
 		// prefab's SeatAnchors are the physical seats. Only checked when anchors
@@ -75,12 +87,15 @@ public sealed partial class VehicleBase : Component
 
 	protected override void OnUpdate()
 	{
+		// Audio runs on EVERY machine — it only reads synced state (EngineOn,
+		// EngineRpm, IsWrecked), so proxies hear the engine without simulating.
+		TickSound( Time.Delta );
+
 		if ( !ShouldSimulate ) return;
 		TickInput();
 		TickWear( Time.Delta );
 		TickSystems();
 		TickRecovery( Time.Delta );
-		TickSound( Time.Delta );
 	}
 
 	protected override void OnFixedUpdate()

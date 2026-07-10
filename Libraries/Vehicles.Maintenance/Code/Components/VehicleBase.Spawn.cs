@@ -63,6 +63,11 @@ public sealed partial class VehicleBase
 		else
 			go.NetworkSpawn();
 
+		// A vehicle must outlive its owner's connection — the host adopts it
+		// instead of it despawning mid-street when the driver disconnects.
+		// Guarded: the orphan-mode API surface varies across s&box builds.
+		try { go.Network.SetOrphanedMode( NetworkOrphaned.Host ); } catch { }
+
 		// Optional persistence hook — gamemodes may no-op this.
 		if ( owner is not null && VehicleHost.Current is not null )
 			VehicleHost.Current.SaveVehicleOwnership( go.Id, owner.SteamId, cfg );
