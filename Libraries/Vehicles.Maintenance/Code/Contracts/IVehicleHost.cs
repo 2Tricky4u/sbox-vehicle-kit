@@ -21,6 +21,11 @@ public interface IVehicleHost
 	IPartInventory GetInventory( Connection player );
 
 	// ─── Persistence (optional — gamemodes can no-op these) ───────────
+	// The library WRITES via SaveVehicleOwnership on every Spawn(owner: …).
+	// The library READS via VehiclePersistence.RestoreOwnershipFor(conn) —
+	// call that from your player-join hook so reconnecting players regain
+	// control of their still-alive vehicles. Respawning vehicles across map
+	// restarts is the gamemode's job (persist here, VehicleBase.Spawn at boot).
 	void SaveVehicleOwnership( Guid vehicleId, ulong steamId, VehicleConfig cfg );
 	bool TryLoadVehicleOwnership( Guid vehicleId, out ulong steamId, out VehicleConfig cfg );
 }

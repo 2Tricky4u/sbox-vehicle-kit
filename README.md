@@ -21,43 +21,31 @@ The "Car Mechanic Simulator" inspiration sits in the maintenance state (fuel, en
 
 ---
 
-## Current status (2026-05-13)
+## Current status (2026-07-10)
 
-**Working in code:**
+**Working and verified in-editor:**
 
-- ✅ Arcade wheel sim with raycast suspension, friction, downforce, air drag
-- ✅ Engine drive (Source 2 contact-clamp workaround — `Body.Velocity +=` instead of `ApplyForceAt`)
-- ✅ Speed cap from `Config.MaxSpeedKmh`
-- ✅ Input smoothing (`Approach`-ramped throttle / steer)
-- ✅ Auto-shifting powertrain (5 gears + reverse + neutral)
-- ✅ Engine braking, skid detection + events
-- ✅ `VehicleTuneProfile` multipliers feeding into `Effective*` properties
-- ✅ Maintenance health factors (engine/body/per-tire) scaling effective values
-- ✅ Networked `[Sync]` state + `[Rpc.Owner]` mutations
-- ✅ Vehicle systems (engine on/off, doors, lights, punctures, horn)
-- ✅ Comprehensive debug logging (per-tick state dump + event transition log)
+- ✅ Kinematic wheel sim (raycast suspension, terrain tilt, wall collide-and-slide, drag, downforce)
+- ✅ **Organic crash damage** — wall impacts + hard landings measured by the solver feed the damage model (with cooldown); the old dead `ICollisionListener` path was removed
+- ✅ **Data-driven engine power** — `EngineTorqueNm × TorqueToForceScale` + `AccelerationCurve` taper; two shipped cars (sedan 250 Nm, hatchback 90 Nm) genuinely drive differently
+- ✅ `vh.spawn <cfg>` works — sedan + hatchback prefabs (cloud models) spawn, drive, take damage
+- ✅ Input smoothing, auto-shifting powertrain, engine braking, skid events
+- ✅ Maintenance loop: fuel (idle + load burn), engine/body health, per-tire wear + punctures, battery **with alternator recharge**, oil wear
+- ✅ **Wrecked state** (body 0 → engine dead until repaired above 25%) + stuck detection + `RecoverUprightRpc`
+- ✅ Seat enter/exit via `SeatInteractor` + `VehicleSeat` (occupant ride-along parenting, eject safety)
+- ✅ Repair pipeline (`RepairFlow`: mechanic gate → base cost charge → part consume → pay), FuelPump + PumpInteractor, PartItemPickup, DiagnosticPanel/HUD/Toast UI
+- ✅ Six `.vtune` presets (grip/drift/rally/heavy/sport/arcade)
+- ✅ Engine/horn/skid audio wired to cloud sounds (loop flag needs a one-time sound-editor check)
+- ✅ Proxy-safe networking: owner-authoritative sim gate, owner-only `[Sync]` seeding, orphaned-vehicle survival, ownership restore on reconnect
+- ✅ Hardened event bus (per-subscriber isolation) + ~35 `vh.*` dev commands
 
-**Scaffolded but not yet gameplay-tested:**
+**Remaining before publish:**
 
-- ⚠️ RepairTool — held tool, mechanic-gated, consumes parts (UI buttons still stubs)
-- ⚠️ FuelPump — charges player via `IVehicleHost.TryCharge`, calls `RefuelRpc`
-- ⚠️ DiagnosticPanel.razor — read-only status display (Repair buttons not yet wired)
-- ⚠️ PartItemPickup — trigger-based world pickup
-
-**Not yet started:**
-
-- ❌ Real seat enter/exit (currently `TestDriverComponent` auto-occupies driver seat)
-- ❌ Sedan `.vmdl` model (driving a placeholder box right now)
-- ❌ Engine / horn / wrench / skid audio
-- ❌ In-vehicle HUD (speedometer / RPM / gear indicator)
-- ❌ Vehicle dealer + parts shop UI/NPCs
-- ❌ DarkRP adapter implementations
-- ❌ Save/load persistence beyond a single session
-
-**Realistic timeline to v1** (per [`TODO.md`](TODO.md)):
-- Aggressive solo dev: ~3 weeks
-- Comfortable: ~5–6 weeks
-- With both target DarkRP adapters polished: add ~2 weeks
+- ⚠️ Hands-on playtest (drive feel, seat flow, UI, audio) — everything above was verified via scripted MCP tests; a human drive-around is the last gate
+- ⚠️ 2-client multiplayer smoke test (needs a second machine/account)
+- ⚠️ Package metadata (thumbnail/description/tags) in the publish dialog
+- ❌ Vehicle dealer + parts shop UI/NPCs (post-v1)
+- ❌ DarkRP adapter implementations (post-v1 — the integration proof)
 
 ---
 
