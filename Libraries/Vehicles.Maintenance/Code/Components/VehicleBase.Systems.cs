@@ -14,19 +14,24 @@ public sealed partial class VehicleBase
 	[Sync] public uint DoorMask { get; set; } = 0;
 	[Sync] public uint TirePunctureMask { get; set; } = 0;
 
-	bool _prevEngineOn = true;
+	// Starts false so a freshly spawned engine-on vehicle raises EngineStarted
+	// on its first TickSystems (sound/VFX hooks get a clean opening edge).
+	bool _prevEngineOn = false;
 
 	/// <summary>The unified gate: engine is mechanically OK AND switched on.
 	/// Use this everywhere instead of CanStartEngine when checking "should the engine produce power right now".</summary>
 	public bool IsEngineRunning => CanStartEngine && EngineOn;
 
 	// ── Engine on/off ─────────────────────────────────────────────────
+	// Events are NOT raised here — TickSystems' edge detection is the single
+	// raise site, so RPC toggles and health stalls can't double-fire.
 	[Rpc.Owner]
 	public void ToggleEngineRpc()
 	{
+		// A dead engine (no fuel / health / battery) refuses to crank instead
+		// of flicking on for one frame and immediately stalling.
+		if ( !EngineOn && !CanStartEngine ) return;
 		EngineOn = !EngineOn;
-		if ( EngineOn ) VehicleEvents.RaiseEngineStarted( this );
-		else VehicleEvents.RaiseEngineStopped( this );
 	}
 
 	// ── Doors ─────────────────────────────────────────────────────────
@@ -75,16 +80,15 @@ public sealed partial class VehicleBase
 	// ── Per-tick: keep system state in sync with maintenance state ────
 	void TickSystems()
 	{
-		// Engine off when health crashes.
+		// Stall when the engine can no longer run (health/fuel/battery), then
+		// pure edge detection — the ONLY place start/stop events are raised.
 		if ( EngineOn && !CanStartEngine )
-		{
 			EngineOn = false;
-			VehicleEvents.RaiseEngineStopped( this );
-		}
-		else if ( !EngineOn && _prevEngineOn != EngineOn )
-		{
+
+		if ( EngineOn && !_prevEngineOn )
 			VehicleEvents.RaiseEngineStarted( this );
-		}
+		else if ( !EngineOn && _prevEngineOn )
+			VehicleEvents.RaiseEngineStopped( this );
 		_prevEngineOn = EngineOn;
 
 		// Auto-puncture tire when wear hits 100% (matches existing TickWear in Damage.cs).

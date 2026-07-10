@@ -48,7 +48,14 @@ public sealed partial class VehicleBase
 
 	void EnsureTireWearList()
 	{
-		var n = Config?.WheelCount ?? 4;
+		// Size to whichever is larger: the sim iterates WheelAnchors while wear
+		// indices come from Config.WheelCount — undersizing either silently
+		// desyncs damage from the visual wheels.
+		var cfgN = Config?.WheelCount ?? 4;
+		var anchorN = WheelAnchors?.Count ?? 0;
+		if ( anchorN > 0 && cfgN != anchorN )
+			Log.Warning( $"[Vehicles.Maintenance] {GameObject.Name}: Config.WheelCount={cfgN} but {anchorN} WheelAnchors are assigned — using {MathF.Max( cfgN, anchorN )} tire slots." );
+		var n = Math.Max( cfgN, Math.Max( anchorN, 1 ) );
 		while ( TireWear.Count < n ) TireWear.Add( 0f );
 		while ( TireWear.Count > n ) TireWear.RemoveAt( TireWear.Count - 1 );
 	}

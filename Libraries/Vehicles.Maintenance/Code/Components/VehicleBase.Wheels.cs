@@ -11,10 +11,11 @@ namespace Vehicles.Maintenance;
 // accumulate into our authoritative `_vel` vector, then move via:
 //     WorldPosition += _vel * dt;
 //
-// The Rigidbody is kept for collision DETECTION (so Damage.cs ICollisionListener
-// still fires) and for mass / collider geometry. We mirror _vel back to
-// Body.Velocity at end-of-tick so debug log + downstream readers see consistent
-// values.
+// The Rigidbody is kept for collider geometry only. A non-simulated body gets
+// NO physics contact events, so crash damage is raised from our own geometry
+// queries: SweepHorizontal wall hits and landing detection both feed
+// Damage.cs ApplyImpactDamage with the measured closing speed. We mirror _vel
+// back to Body.Velocity at end-of-tick so debug readers see consistent values.
 //
 // Drawing on matekdev/sbox-arcade-car-physics for the conceptual layout
 // (per-wheel state, raycast suspension, slip-velocity friction) but every
@@ -156,6 +157,15 @@ public sealed partial class VehicleBase
 	/// read our velocity without going through Body.Velocity (which lags by a tick).</summary>
 	public Vector3 KinematicVelocity => _vel;
 
+	/// <summary>Directly set the sim velocity (inches/sec). For gamemodes and
+	/// tooling: launch pads, explosions, scripted crashes, dev commands.</summary>
+	public void SetKinematicVelocity( Vector3 velocityInches ) => _vel = velocityInches;
+
+	// Landing-impact tracking: while airborne we remember the fall speed so the
+	// airborne→grounded transition can convert it into impact damage.
+	int _prevGroundedCount;
+	float _fallVelZ;
+
 	float _lateralSlipMs;
 
 	/// <summary>Absolute sideways slide of the body in m/s (how hard the car
@@ -251,6 +261,21 @@ public sealed partial class VehicleBase
 			ProcessWheelKinematic( i, anchor, wsDown, dt, ref totalSuspensionForce );
 			if ( _wheels[i].IsGrounded ) groundedCount++;
 		}
+
+		// Landing impact: convert remembered fall speed into damage on the
+		// airborne→grounded transition. Scaled ×0.7 — a landing hurts less than
+		// an equal-speed head-on. Damage.cs applies threshold + cooldown.
+		if ( groundedCount == 0 )
+		{
+			_fallVelZ = _vel.z;
+		}
+		else
+		{
+			if ( _prevGroundedCount == 0 && _fallVelZ < -LandingDamageThreshold )
+				ApplyImpactDamage( WorldPosition, -_fallVelZ * 0.7f );
+			_fallVelZ = 0f;
+		}
+		_prevGroundedCount = groundedCount;
 
 		// Sum of per-wheel suspension forces → single upward velocity change.
 		// Force is in Newtons. Δv = F·dt / m, then convert m/s → inches/sec.
@@ -441,6 +466,30 @@ public sealed partial class VehicleBase
 		// This is where the cap-bypass happens: we set the position directly
 		// rather than letting Source 2's physics integrate Body.Velocity.
 		var delta = _vel * dt;
+
+		// Vertical CCD: a fall faster than one wheel radius per tick can step
+		// past the suspension rays and tunnel through thin floors. Clamp the
+		// vertical move against a downward ray and treat the stop as a landing.
+		if ( delta.z < -WheelRadius )
+		{
+			try
+			{
+				var probe = Scene.Trace
+					.Ray( WorldPosition + Vector3.Up * 2f, WorldPosition + Vector3.Down * (-delta.z + 2f) )
+					.IgnoreGameObjectHierarchy( GameObject )
+					.WithoutTags( "player" )
+					.Run();
+				if ( probe.Hit && probe.Normal.z > 0.7f )
+				{
+					var fallSpeed = -_vel.z;
+					delta.z = -MathF.Max( 0f, probe.Distance - 2f );
+					_vel.z = 0f;
+					ApplyImpactDamage( probe.HitPosition, fallSpeed * 0.7f );
+				}
+			}
+			catch { /* trace API mismatch — fall back to unclamped move */ }
+		}
+
 		if ( WallCollision )
 		{
 			// Vertical (gravity/suspension) passes through untouched — only the
@@ -488,11 +537,13 @@ public sealed partial class VehicleBase
 
 			float nearest = float.MaxValue;
 			Vector3 wallN = default;
+			Vector3 wallHitPos = default;
 			for ( int s = -1; s <= 1; s++ )
 			{
 				var start = feeler + right * (halfWid * s);
 				var tr = Scene.Trace.Ray( start, start + dir * rayLen )
 					.IgnoreGameObjectHierarchy( GameObject )
+					.WithoutTags( "player" )   // players never block a car (no player-impact system in v1)
 					.Run();
 				if ( !tr.Hit ) continue;
 				if ( MathF.Abs( tr.Normal.z ) > 0.7f ) continue;     // floor/ramp, not a wall
@@ -500,6 +551,7 @@ public sealed partial class VehicleBase
 				{
 					nearest = tr.Distance;
 					wallN = tr.Normal.WithZ( 0f ).Normal;
+					wallHitPos = tr.HitPosition;
 				}
 			}
 
@@ -519,8 +571,15 @@ public sealed partial class VehicleBase
 
 				// Cancel only the velocity going INTO the wall (keep tangential
 				// + any away-from-wall component, so you can reverse off it).
+				// The closing speed IS the crash — this is the organic trigger
+				// for the crash→damage→repair loop (the kinematic body gets no
+				// physics contact events, so damage must come from here).
 				var into = Vector3.Dot( _vel, wallN );
-				if ( into < 0f ) _vel -= wallN * into;
+				if ( into < 0f )
+				{
+					ApplyImpactDamage( wallHitPos, -into );
+					_vel -= wallN * into;
+				}
 			}
 
 			return pos;
@@ -546,9 +605,12 @@ public sealed partial class VehicleBase
 
 		// Single center raycast — kinematic mode is forgiving enough that
 		// the triple-trace from the force-based version isn't needed.
+		// Hierarchy ignore: the vehicle's model collider lives on a CHILD
+		// object; ignoring only the root would let the suspension ray hit
+		// the car's own body once a real model is attached.
 		wheel.Center = Scene.Trace
 			.Ray( origin, origin + wsDown * traceLength )
-			.IgnoreGameObject( GameObject )
+			.IgnoreGameObjectHierarchy( GameObject )
 			.Run();
 
 		if ( !wheel.Center.Hit )

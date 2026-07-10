@@ -155,6 +155,13 @@
 
 	public static void Hide() => Target = null;
 
+	public override void OnDeleted()
+	{
+		// Drop the statics so a scene reload doesn't pin a dead panel/vehicle.
+		if ( _panel == this ) { _panel = null; Target = null; }
+		base.OnDeleted();
+	}
+
 	static float Sweep( float frac ) => StartAng + (EndAng - StartAng) * MathX.Clamp( frac, 0f, 1f );
 	static float PX( float angDeg, float r ) => C + r * MathF.Sin( angDeg * MathF.PI / 180f );
 	static float PY( float angDeg, float r ) => C - r * MathF.Cos( angDeg * MathF.PI / 180f );

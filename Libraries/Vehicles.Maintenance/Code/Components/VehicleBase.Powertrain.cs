@@ -73,10 +73,21 @@ public sealed partial class VehicleBase
 			if ( CurrentGear < 0 ) return ReverseTorqueMultiplier;
 			var idx = CurrentGear - 1;
 			if ( ForwardGearTorqueMultipliers == null || idx >= ForwardGearTorqueMultipliers.Length )
+			{
+				// Auto-shift can't exceed the array, but SetGear (console/admin)
+				// can — warn once instead of silently pretending it's a 1.0 gear.
+				if ( !_gearArrayWarned )
+				{
+					_gearArrayWarned = true;
+					Log.Warning( $"[Vehicles.Maintenance] {GameObject.Name}: gear {CurrentGear} has no entry in ForwardGearTorqueMultipliers (length {ForwardGearTorqueMultipliers?.Length ?? 0}) — using 1.0." );
+				}
 				return 1f;
+			}
 			return ForwardGearTorqueMultipliers[idx];
 		}
 	}
+
+	bool _gearArrayWarned;
 
 	int ForwardGearCount => ForwardGearTorqueMultipliers?.Length ?? 5;
 

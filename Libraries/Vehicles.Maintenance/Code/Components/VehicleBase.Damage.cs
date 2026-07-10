@@ -3,13 +3,25 @@ using System;
 
 namespace Vehicles.Maintenance;
 
-public sealed partial class VehicleBase : Component.ICollisionListener
+public sealed partial class VehicleBase
 {
 	[Property, Group( "Damage" ), Range( 0, 1000 )]
 	public float ImpactDamageThreshold { get; set; } = 200f;
 
 	[Property, Group( "Damage" )]
 	public float ImpactDamageMultiplier { get; set; } = 0.05f;
+
+	/// <summary>Minimum seconds between impact-damage applications. Grinding
+	/// along a wall is one sustained contact, not a crash per tick.</summary>
+	[Property, Group( "Damage" ), Range( 0.05f, 2f )]
+	public float ImpactDamageCooldown { get; set; } = 0.3f;
+
+	/// <summary>Vertical landing speed (inches/sec) at/above which touching down
+	/// counts as an impact. ~350 in/s ≈ a 32 km/h vertical hit.</summary>
+	[Property, Group( "Damage" ), Range( 100, 2000 )]
+	public float LandingDamageThreshold { get; set; } = 350f;
+
+	TimeSince _lastImpactDamage;
 
 	/// <summary>Tyre wear added per second per m/s of lateral slip. Default
 	/// tuned so a hard drift (~10 m/s sideways) wears a tyre 0→1 in ~30 s,
@@ -33,22 +45,32 @@ public sealed partial class VehicleBase : Component.ICollisionListener
 	[Property, Group( "Damage" ), Range( 200, 4000 )]
 	public float WheelPunctureImpact { get; set; } = 1200f;
 
+	/// <summary>Litres per second burned while the engine idles (no throttle).
+	/// Default ≈ 1 L/h — leaving the engine running has a cost.</summary>
+	[Property, Group( "Damage" ), Range( 0f, 0.005f )]
+	public float IdleBurnLps { get; set; } = 0.0003f;
+
 	void TickWear( float dt )
 	{
 		if ( Config == null ) return;
 
 		// inches/sec → km/h is ×0.0254 (→m/s) ×3.6 (→km/h) = ×0.09144.
-		// (Was ×0.036 — a meters-based assumption; wrong now that velocity is
-		// consistently in sandbox inch units via the kinematic controller.)
-		var speedKmh = Body.Velocity.Length * 0.09144f;
+		// KinematicVelocity is the authoritative sim velocity; Body.Velocity is
+		// only an end-of-tick mirror and lags (or is skipped) — never read it here.
+		var speedKmh = KinematicVelocity.Length * 0.09144f;
 		var engineRunning = IsEngineRunning;
 
-		// Fuel burn — only when throttle is engaged (idle consumption ignored for v1)
-		if ( ThrottleInput > 0.1f && engineRunning )
+		// Fuel burn — distance-based under throttle (forward OR reverse), plus
+		// a small idle burn whenever the engine is running.
+		if ( MathF.Abs( ThrottleInput ) > 0.1f && engineRunning )
 		{
 			var distanceKm = (speedKmh * dt) / 3600f;
 			var litres = distanceKm * (Config.FuelConsumptionLPer100Km / 100f);
 			Fuel = MathF.Max( 0f, Fuel - litres );
+		}
+		else if ( engineRunning )
+		{
+			Fuel = MathF.Max( 0f, Fuel - dt * IdleBurnLps );
 		}
 
 		// Tyre wear from real lateral slip (sliding scrubs rubber). Body-level
@@ -62,10 +84,17 @@ public sealed partial class VehicleBase : Component.ICollisionListener
 				TireWear[i] = MathF.Min( 1f, TireWear[i] + wear );
 		}
 
-		// Battery slowly drains while engine runs (alternator ≈ break-even but not perfect).
-		// Drains ~5% per minute of engine-on time. Empty battery → engine won't crank.
+		// Battery: the alternator recharges above idle (driving keeps it topped
+		// up, ~10%/min), while idling slowly drains it (~5%/min). Sitting with
+		// the engine idling forever eventually strands you; driving never does.
+		// Empty battery → engine won't crank (fix: drive, or RepairRpc(Battery)).
 		if ( engineRunning )
-			BatteryCharge = MathF.Max( 0f, BatteryCharge - dt * (BatteryMaxCharge / 1200f) );
+		{
+			if ( EngineRpm > IdleRpm * 1.15f )
+				BatteryCharge = MathF.Min( BatteryMaxCharge, BatteryCharge + dt * (BatteryMaxCharge / 600f) );
+			else
+				BatteryCharge = MathF.Max( 0f, BatteryCharge - dt * (BatteryMaxCharge / 1200f) );
+		}
 
 		// Oil drains with mileage. Drains ~10% per real-time minute at top speed
 		// (much slower at low speed). Critical (<20%) accelerates engine wear 5×.
@@ -84,23 +113,24 @@ public sealed partial class VehicleBase : Component.ICollisionListener
 		}
 	}
 
-	public void OnCollisionStart( Collision collision )
+	// Impact damage entry point. The kinematic body (MotionEnabled=false) never
+	// receives Source 2 contact events, so the wall sweep and landing detection
+	// in Wheels.cs call this directly with the closing speed they measured.
+	internal void ApplyImpactDamage( Vector3 hitPoint, float impactSpeedInches )
 	{
-		// Gate on ShouldSimulate (LocalSimulation || Network.IsOwner) to match
-		// the rest of the sim. Gating on Network.IsOwner alone meant crash
-		// damage silently never fired in solo/local play (no network owner),
-		// breaking the crash→repair half of the maintenance loop.
+		// Gate on ShouldSimulate to match the rest of the sim — only the
+		// simulating machine computes damage; [Sync] carries it to everyone.
 		if ( !ShouldSimulate ) return;
 		if ( Config == null ) return;
+		if ( impactSpeedInches < ImpactDamageThreshold ) return;
+		if ( _lastImpactDamage < ImpactDamageCooldown ) return;
+		_lastImpactDamage = 0f;
 
-		var impact = collision.Contact.Speed.Length;
-		if ( impact < ImpactDamageThreshold ) return;
-
-		var damage = (impact - ImpactDamageThreshold) * ImpactDamageMultiplier;
+		var damage = (impactSpeedInches - ImpactDamageThreshold) * ImpactDamageMultiplier;
 		BodyHealth = MathF.Max( 0f, BodyHealth - damage );
 
 		// High-speed crashes also nudge engine health
-		if ( impact > ImpactDamageThreshold * 3f )
+		if ( impactSpeedInches > ImpactDamageThreshold * 3f )
 		{
 			var engineDmg = damage * 0.3f;
 			EngineHealth = MathF.Max( 0f, EngineHealth - engineDmg );
@@ -110,7 +140,7 @@ public sealed partial class VehicleBase : Component.ICollisionListener
 		VehicleEvents.RaiseDamage( this, PartKind.Body, damage );
 
 		// Per-wheel: a hit landing near a wheel scrubs / blows that tyre.
-		ApplyWheelImpact( collision.Contact.Point, impact );
+		ApplyWheelImpact( hitPoint, impactSpeedInches );
 	}
 
 	// Maps a collision point to the nearest wheel and damages that tyre only.
@@ -145,7 +175,4 @@ public sealed partial class VehicleBase : Component.ICollisionListener
 		TireWear[nearest] = MathF.Min( 1f, TireWear[nearest] + add );
 		VehicleEvents.RaiseDamage( this, PartKind.Tire, add );
 	}
-
-	public void OnCollisionUpdate( Collision collision ) { }
-	public void OnCollisionStop( CollisionStop collision ) { }
 }

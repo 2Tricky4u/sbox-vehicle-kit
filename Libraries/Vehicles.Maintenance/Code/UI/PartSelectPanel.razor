@@ -91,6 +91,13 @@
 		_active.OnClose?.Invoke();
 	}
 
+	public override void OnDeleted()
+	{
+		// Drop the static so a scene reload doesn't pin a dead panel.
+		if ( _active == this ) _active = null;
+		base.OnDeleted();
+	}
+
 	protected override int BuildHash()
 	{
 		int invHash = HashCode.Combine( Tool, Tool?.CurrentPart );

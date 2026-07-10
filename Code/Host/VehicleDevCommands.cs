@@ -83,6 +83,7 @@ public static class VehicleDevCommands
 		Log.Info( "  vh.door <idx>                      — toggle door [idx]" );
 		Log.Info( "  vh.horn                            — honk" );
 		Log.Info( "  vh.flip                            — flip/recover nearest (zeroes velocity, levels rotation)" );
+		Log.Info( "  vh.push [kmh=60]                   — launch nearest along its facing (crash testing)" );
 		Log.Info( "  vh.debug                           — toggle DebugLog on nearest" );
 		Log.Info( "  vh.debugdraw [seconds]             — draw wheel rays + forward arrow + collider (0=stop)" );
 		Log.Info( "  vh.scene                           — dump GameObject tree + setup checklist (diagnose E/seat issues)" );
@@ -332,9 +333,23 @@ public static class VehicleDevCommands
 		var yaw = v.WorldRotation.Yaw();
 		v.WorldRotation = Rotation.FromYaw( yaw );
 		v.WorldPosition += Vector3.Up * 30f;
-		v.Body.Velocity = Vector3.Zero;
+		v.SetKinematicVelocity( Vector3.Zero );   // the authoritative sim velocity
+		v.Body.Velocity = Vector3.Zero;           // mirror, kept consistent
 		v.Body.AngularVelocity = Vector3.Zero;
 		Log.Info( "[vh] Flipped + zeroed velocity." );
+	}
+
+	/// <summary>Launch the nearest vehicle forward at the given speed — the
+	/// scripted-crash backbone: aim the car at a wall, vh.push 60, watch the
+	/// OnDamage log. Negative speed pushes backwards.</summary>
+	[ConCmd( "vh.push" )]
+	public static void Push( float speedKmh = 60f )
+	{
+		if ( !TryRequireVehicle( out var v ) ) return;
+		// km/h → inches/sec is ÷0.09144 (see CLAUDE.md unit table).
+		var speedInches = speedKmh / 0.09144f;
+		v.SetKinematicVelocity( v.WorldRotation.Forward * speedInches );
+		Log.Info( $"[vh] Pushed {speedKmh:F0} km/h ({speedInches:F0} in/s) along facing." );
 	}
 
 	[ConCmd( "vh.debug" )]

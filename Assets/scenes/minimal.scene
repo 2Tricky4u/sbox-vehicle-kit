@@ -60,6 +60,8 @@
           "__guid": "d3659344-a90d-48fa-927a-095f70fe041f",
           "__enabled": true,
           "Flags": 0,
+          "ContactShadows": true,
+          "Contribution": "Diffuse, Specular, Transmissive",
           "FogMode": "Enabled",
           "FogStrength": 1,
           "LightColor": "0.94419,0.97767,1,1",
@@ -136,6 +138,7 @@
           "OnComponentUpdate": null,
           "Priority": 0,
           "Projection": "Sphere",
+          "RenderExcludeTags": "",
           "Resolution": "Small",
           "Texture": "textures/cubemaps/default2.vtex",
           "TintColor": "1,1,1,1",
@@ -662,6 +665,8 @@
           "__enabled": true,
           "Flags": 0,
           "AirDrag": 0.7407408,
+          "BodyAlignSpeed": 8,
+          "BodyBoxSize": "170,80,50",
           "BrakeForce": 30,
           "Config": "sedan.vcfg",
           "DebugLog": true,
@@ -676,12 +681,16 @@
           ],
           "FrontWheelCount": 2,
           "FullSteerSpeedKmh": 30,
+          "IdleBurnLps": 0.0003,
           "IdleRpm": 800,
+          "ImpactDamageCooldown": 0.3,
           "ImpactDamageMultiplier": 0.05,
           "ImpactDamageThreshold": 200,
           "InputDeadzone": 0.05,
+          "LandingDamageThreshold": 350,
           "LateralFriction": 0.85,
           "LocalSimulation": true,
+          "MaxBodyTiltDeg": 35,
           "MaxEngineForce": 15000,
           "MaxForwardAccelMs2": 6,
           "OnComponentDestroy": null,
@@ -705,9 +714,12 @@
           "SuspensionDamping": 6000,
           "SuspensionLengthRelaxed": 60,
           "SuspensionStiffness": 80000,
+          "TerrainTilt": true,
           "ThrottleFallRate": 8,
           "ThrottleRiseRate": 6,
+          "TireWearPerSlipMs": 0.0035,
           "Tune": null,
+          "WallCollision": true,
           "WheelAnchors": [
             {
               "_type": "gameobject",
@@ -726,6 +738,9 @@
               "go": "e014ac78-2adb-4803-86ea-69b330bfb3c9"
             }
           ],
+          "WheelImpactRadius": 24,
+          "WheelImpactWearMultiplier": 0.0006,
+          "WheelPunctureImpact": 1200,
           "WheelRadius": 8,
           "YawRateScale": 2
         },
@@ -1012,6 +1027,8 @@
           "__enabled": true,
           "Flags": 0,
           "AirDrag": 0.15,
+          "BodyAlignSpeed": 8,
+          "BodyBoxSize": "170,80,50",
           "BrakeForce": 30,
           "Config": "sedan.vcfg",
           "DebugLog": false,
@@ -1026,12 +1043,16 @@
           ],
           "FrontWheelCount": 2,
           "FullSteerSpeedKmh": 30,
+          "IdleBurnLps": 0.0003,
           "IdleRpm": 800,
+          "ImpactDamageCooldown": 0.3,
           "ImpactDamageMultiplier": 0.05,
           "ImpactDamageThreshold": 200,
           "InputDeadzone": 0.05,
+          "LandingDamageThreshold": 350,
           "LateralFriction": 0.85,
           "LocalSimulation": true,
+          "MaxBodyTiltDeg": 35,
           "MaxEngineForce": 15000,
           "MaxForwardAccelMs2": 6,
           "OnComponentDestroy": null,
@@ -1055,9 +1076,12 @@
           "SuspensionDamping": 3000,
           "SuspensionLengthRelaxed": 25,
           "SuspensionStiffness": 30000,
+          "TerrainTilt": true,
           "ThrottleFallRate": 8,
           "ThrottleRiseRate": 6,
+          "TireWearPerSlipMs": 0.0035,
           "Tune": null,
+          "WallCollision": true,
           "WheelAnchors": [
             {
               "_type": "gameobject",
@@ -1076,6 +1100,9 @@
               "go": "d5ad9f2d-0c61-4353-903f-9012928c6e2d"
             }
           ],
+          "WheelImpactRadius": 24,
+          "WheelImpactWearMultiplier": 0.0006,
+          "WheelPunctureImpact": 1200,
           "WheelRadius": 8,
           "YawRateScale": 2
         },
@@ -1308,7 +1335,7 @@
       "Position": "-1368.40601,-63.5739861,34.6478729",
       "Rotation": "0,0,0,1",
       "Scale": "1,1,1",
-      "Tags": "",
+      "Tags": "player",
       "Enabled": true,
       "NetworkMode": 2,
       "NetworkFlags": 0,
@@ -1338,6 +1365,7 @@
           "BodyMass": 500,
           "BodyRadius": 16,
           "BrakePower": 1,
+          "CameraCollisionIgnore": "",
           "CameraOffset": "256,0,12",
           "ColliderObject": {
             "_type": "gameobject",
@@ -1693,9 +1721,6 @@
       "CustomBounds": false
     },
     "GameObjectSystems": {
-      "Sandbox.MovieMaker.MovieRecorderSystem": {
-        "DisableClientRecording": false
-      },
       "Sandbox.Clutter.ClutterGridSystem": {
         "Storage": {
           "$blob": "2aba01e5-163f-4d18-9b19-bb2470d0861f"

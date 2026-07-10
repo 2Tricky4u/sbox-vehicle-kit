@@ -46,6 +46,13 @@
 		_items.RemoveAll( i => i.Expire <= 0f );
 	}
 
+	public override void OnDeleted()
+	{
+		// Drop the static so a scene reload doesn't pin a dead panel.
+		if ( _panel == this ) _panel = null;
+		base.OnDeleted();
+	}
+
 	protected override int BuildHash()
 	{
 		int h = _items.Count;
