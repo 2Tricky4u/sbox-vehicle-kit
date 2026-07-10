@@ -11,19 +11,38 @@ namespace Vehicles.Maintenance;
 public sealed class PartItemPickup : Component, Component.ITriggerListener
 {
 	[Property] public PartDefinition Part { get; set; }
+
+	/// <summary>Fallback: resolve the part by .partdef resource name when the
+	/// Part reference isn't assigned (lets tools/spawners configure pickups
+	/// with a plain string).</summary>
+	[Property] public string PartIdent { get; set; }
+
 	[Property] public int Count { get; set; } = 1;
+
+	PartDefinition ResolvePart() =>
+		Part ?? (string.IsNullOrWhiteSpace( PartIdent ) ? null : PartDefinition.FindByIdent( PartIdent ));
 
 	public void OnTriggerEnter( GameObject other )
 	{
-		if ( VehicleHost.Current is null || Part is null ) return;
+		var part = ResolvePart();
+		if ( VehicleHost.Current is null || part is null ) return;
 
-		var conn = other.Network?.Owner;
+		// The collider that touched us may be a child of the player rig; walk
+		// to the root. Networked play resolves the owner; solo/editor play has
+		// no owner on the pawn, so fall back to the local connection — but only
+		// for objects that are actually a player (props shouldn't loot parts).
+		var root = other?.Root ?? other;
+		if ( root is null ) return;
+
+		var conn = root.Network?.Owner;
+		if ( conn is null && root.Components.GetInDescendantsOrSelf<PlayerController>() is not null )
+			conn = Connection.Local;
 		if ( conn is null ) return;
 
 		var inv = VehicleHost.Current.GetInventory( conn );
 		if ( inv is null ) return;
 
-		inv.Add( Part, Count );
+		inv.Add( part, Count );
 		GameObject.Destroy();
 	}
 

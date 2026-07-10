@@ -1,0 +1,14 @@
+{
+  "PresetName": "Heavy",
+  "EnginePowerMultiplier": 0.85,
+  "BrakeMultiplier": 1.2,
+  "SteeringMultiplier": 0.85,
+  "SuspensionStiffnessMultiplier": 1.25,
+  "SuspensionDampingMultiplier": 1.3,
+  "FrontGripMultiplier": 1.05,
+  "RearGripMultiplier": 1.05,
+  "DownforceMultiplier": 1.4,
+  "Tags": [ "heavy" ],
+  "__references": [],
+  "__version": 0
+}

@@ -1,0 +1,14 @@
+{
+  "PresetName": "Sport",
+  "EnginePowerMultiplier": 1.2,
+  "BrakeMultiplier": 1.1,
+  "SteeringMultiplier": 1.05,
+  "SuspensionStiffnessMultiplier": 1.15,
+  "SuspensionDampingMultiplier": 1.1,
+  "FrontGripMultiplier": 1.05,
+  "RearGripMultiplier": 1,
+  "DownforceMultiplier": 1.1,
+  "Tags": [ "sport" ],
+  "__references": [],
+  "__version": 0
+}

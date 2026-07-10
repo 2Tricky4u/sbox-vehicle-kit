@@ -1,0 +1,14 @@
+{
+  "PresetName": "Grip",
+  "EnginePowerMultiplier": 1,
+  "BrakeMultiplier": 1.05,
+  "SteeringMultiplier": 0.95,
+  "SuspensionStiffnessMultiplier": 1.1,
+  "SuspensionDampingMultiplier": 1.1,
+  "FrontGripMultiplier": 1.15,
+  "RearGripMultiplier": 1.15,
+  "DownforceMultiplier": 1.2,
+  "Tags": [ "grip" ],
+  "__references": [],
+  "__version": 0
+}

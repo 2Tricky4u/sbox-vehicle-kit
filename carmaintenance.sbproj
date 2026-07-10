@@ -6,7 +6,12 @@
   "Schema": 1,
   "IncludeSourceFiles": false,
   "Resources": null,
-  "PackageReferences": [],
+  "PackageReferences": [
+    "danduw.simplecars",
+    "opensound.vehiclecarengine2000rpmrearexteriorloopmono",
+    "opensound.vehiclecarhornexteriormono",
+    "opensound.car_driving_tires_ext"
+  ],
   "EditorReferences": null,
   "Mounts": null,
   "IsStandaloneOnly": false,

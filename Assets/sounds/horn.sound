@@ -1,0 +1,44 @@
+{
+  "UI": false,
+  "Volume": "1",
+  "Pitch": "1",
+  "Decibels": 85,
+  "SelectionMode": "Random",
+  "Looping": false,
+  "Sounds": [
+    "sound/nox_essentials/vehicle/vehicle_car/vehicle_car_horn_exterior_mono.vsnd"
+  ],
+  "OcclusionEnabled": true,
+  "Occlusion": true,
+  "ReverbEnabled": true,
+  "Reflections": true,
+  "AirAbsorption": true,
+  "Transmission": true,
+  "OcclusionRadius": 64,
+  "DistanceAttenuation": true,
+  "Distance": 8000,
+  "Falloff": [
+    {
+      "x": 0,
+      "y": 1,
+      "in": 0,
+      "out": -1.8,
+      "mode": "Mirrored"
+    },
+    {
+      "x": 1,
+      "y": 0,
+      "in": 0,
+      "out": 0,
+      "mode": "Mirrored"
+    }
+  ],
+  "DefaultMixer": {
+    "Name": "unknown",
+    "Id": "00000000-0000-0000-0000-000000000000"
+  },
+  "__references": [
+    "opensound.vehiclecarhornexteriormono"
+  ],
+  "__version": 1
+}

@@ -1,0 +1,14 @@
+{
+  "PresetName": "Rally",
+  "EnginePowerMultiplier": 1.05,
+  "BrakeMultiplier": 1.1,
+  "SteeringMultiplier": 1.1,
+  "SuspensionStiffnessMultiplier": 0.8,
+  "SuspensionDampingMultiplier": 1.2,
+  "FrontGripMultiplier": 0.9,
+  "RearGripMultiplier": 0.9,
+  "DownforceMultiplier": 0.9,
+  "Tags": [ "rally" ],
+  "__references": [],
+  "__version": 0
+}

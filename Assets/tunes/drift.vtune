@@ -1,0 +1,14 @@
+{
+  "PresetName": "Drift",
+  "EnginePowerMultiplier": 1.05,
+  "BrakeMultiplier": 1,
+  "SteeringMultiplier": 1.2,
+  "SuspensionStiffnessMultiplier": 0.95,
+  "SuspensionDampingMultiplier": 0.9,
+  "FrontGripMultiplier": 1,
+  "RearGripMultiplier": 0.55,
+  "DownforceMultiplier": 0.8,
+  "Tags": [ "drift" ],
+  "__references": [],
+  "__version": 0
+}

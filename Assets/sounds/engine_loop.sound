@@ -1,0 +1,51 @@
+{
+  "UI": false,
+  "Volume": "0.8",
+  "Pitch": "1",
+  "Decibels": 78,
+  "SelectionMode": "Random",
+  "Looping": true,
+  "Sounds": [
+    "sound/nox_essentials/vehicle/vehicle_car/vehicle_car_engine_2000_rpm_rear_exterior_loop_mono.vsnd"
+  ],
+  "OcclusionEnabled": true,
+  "Occlusion": true,
+  "ReverbEnabled": true,
+  "Reflections": true,
+  "AirAbsorption": true,
+  "Transmission": true,
+  "OcclusionRadius": 64,
+  "DistanceAttenuation": true,
+  "Distance": 6000,
+  "Falloff": [
+    {
+      "x": 0,
+      "y": 1,
+      "in": 0,
+      "out": -1.8,
+      "mode": "Mirrored"
+    },
+    {
+      "x": 0.3,
+      "y": 0.25,
+      "in": -1.0,
+      "out": -1.0,
+      "mode": "Mirrored"
+    },
+    {
+      "x": 1,
+      "y": 0,
+      "in": 0,
+      "out": 0,
+      "mode": "Mirrored"
+    }
+  ],
+  "DefaultMixer": {
+    "Name": "unknown",
+    "Id": "00000000-0000-0000-0000-000000000000"
+  },
+  "__references": [
+    "opensound.vehiclecarengine2000rpmrearexteriorloopmono"
+  ],
+  "__version": 1
+}
